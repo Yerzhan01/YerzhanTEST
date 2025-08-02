@@ -36,7 +36,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Edit, UserCheck, UserX } from 'lucide-react';
+import { Plus, Edit, UserCheck, UserX, RefreshCw } from 'lucide-react';
 
 const userSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
@@ -72,9 +72,11 @@ export default function Managers() {
   // Check if user has access to manage users
   const hasAccess = user?.role === 'admin';
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users, isLoading, refetch } = useQuery({
     queryKey: ['/api/users'],
     enabled: hasAccess,
+    staleTime: 0, // Always refetch
+    refetchOnWindowFocus: true,
   });
 
   const form = useForm<UserFormData>({
@@ -97,6 +99,7 @@ export default function Managers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      refetch(); // Force immediate refetch
       toast({
         title: 'Пользователь создан',
         description: 'Новый пользователь успешно добавлен в систему',
@@ -223,10 +226,16 @@ export default function Managers() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>Пользователи системы</CardTitle>
-              <Button onClick={() => setIsFormOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Добавить пользователя
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                  Обновить
+                </Button>
+                <Button onClick={() => setIsFormOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Добавить пользователя
+                </Button>
+              </div>
             </div>
           </CardHeader>
 
