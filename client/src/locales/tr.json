@@ -1,0 +1,105 @@
+{
+  "auth": {
+    "login": "Kullanıcı Adı",
+    "password": "Şifre",
+    "loginButton": "Giriş Yap",
+    "rememberMe": "Beni Hatırla",
+    "welcomeBack": "Hoş Geldiniz",
+    "platformTitle": "Satış Platformu",
+    "platformSubtitle": "Amazon & Shopify Yönetimi"
+  },
+  "navigation": {
+    "dashboard": "Gösterge Paneli",
+    "deals": "Anlaşmalar",
+    "returns": "İadeler",
+    "planning": "Planlama",
+    "analytics": "Mali Analitik",
+    "managers": "Yöneticiler",
+    "settings": "Ayarlar",
+    "profile": "Profil"
+  },
+  "dashboard": {
+    "title": "Gösterge Paneli",
+    "subtitle": "Tüm projeler için genel istatistikler",
+    "monthSales": "Aylık Satışlar",
+    "totalDeals": "Anlaşmalar",
+    "returns": "İadeler",
+    "planCompletion": "Plan Tamamlama",
+    "salesChart": "Günlük Satışlar",
+    "projectComparison": "Amazon vs Shopify",
+    "topManagers": "En İyi Yöneticiler",
+    "recentDeals": "Son Anlaşmalar"
+  },
+  "deals": {
+    "title": "Anlaşma Yönetimi",
+    "addDeal": "Anlaşma Ekle",
+    "clientName": "Müşteri Adı",
+    "phone": "Telefon",
+    "email": "E-posta",
+    "project": "Proje",
+    "program": "Program/Tarife",
+    "status": "Durum",
+    "amount": "Tutar",
+    "manager": "Yönetici",
+    "date": "Tarih",
+    "actions": "İşlemler",
+    "edit": "Düzenle",
+    "delete": "Sil"
+  },
+  "status": {
+    "new": "Yeni Başvuru",
+    "in_progress": "İşlemde",
+    "prepayment": "Ön Ödeme",
+    "partial": "Kısmi Ödeme",
+    "completed": "Başarıyla Tamamlandı",
+    "cancelled": "İptal Edildi/Ret",
+    "frozen": "Donduruldu"
+  },
+  "projects": {
+    "amazon": "Amazon",
+    "shopify": "Shopify",
+    "all": "Tümü"
+  },
+  "programs": {
+    "amazon_pro": "Amazon PRO",
+    "amazon_pro_plus": "Amazon PRO+",
+    "shopify_basic": "Shopify Basic",
+    "shopify_advanced": "Shopify Advanced"
+  },
+  "common": {
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "add": "Ekle",
+    "search": "Ara",
+    "export": "Dışa Aktar",
+    "loading": "Yükleniyor...",
+    "error": "Hata",
+    "success": "Başarılı",
+    "confirm": "Onayla",
+    "close": "Kapat",
+    "actions": "İşlemler",
+    "filter": "Filtre",
+    "clear": "Temizle"
+  },
+  "export": {
+    "excel": "Excel (.xlsx)",
+    "pdf": "PDF Raporu",
+    "selectFormat": "Format Seçin"
+  },
+  "forms": {
+    "required": "Zorunlu alan",
+    "invalidEmail": "Geçersiz e-posta",
+    "invalidPhone": "Geçersiz telefon numarası"
+  },
+  "messages": {
+    "dealCreated": "Anlaşma başarıyla oluşturuldu",
+    "dealUpdated": "Anlaşma başarıyla güncellendi",
+    "dealDeleted": "Anlaşma başarıyla silindi",
+    "loginSuccess": "Giriş başarılı",
+    "loginError": "Giriş hatası",
+    "accessDenied": "Erişim reddedildi",
+    "networkError": "Ağ hatası"
+  }
+}

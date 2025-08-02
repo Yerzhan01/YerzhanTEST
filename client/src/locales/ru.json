@@ -1,0 +1,105 @@
+{
+  "auth": {
+    "login": "Логин",
+    "password": "Пароль",
+    "loginButton": "Войти",
+    "rememberMe": "Запомнить меня",
+    "welcomeBack": "Добро пожаловать",
+    "platformTitle": "Платформа продаж",
+    "platformSubtitle": "Управление Amazon & Shopify"
+  },
+  "navigation": {
+    "dashboard": "Дашборд",
+    "deals": "Сделки",
+    "returns": "Возвраты",
+    "planning": "Планирование",
+    "analytics": "Финансовая аналитика",
+    "managers": "Менеджеры",
+    "settings": "Настройки",
+    "profile": "Профиль"
+  },
+  "dashboard": {
+    "title": "Дашборд",
+    "subtitle": "Общая статистика по всем проектам",
+    "monthSales": "Продажи за месяц",
+    "totalDeals": "Сделки",
+    "returns": "Возвраты",
+    "planCompletion": "Выполнение плана",
+    "salesChart": "Продажи по дням",
+    "projectComparison": "Amazon vs Shopify",
+    "topManagers": "Топ менеджеры",
+    "recentDeals": "Последние сделки"
+  },
+  "deals": {
+    "title": "Управление сделками",
+    "addDeal": "Добавить сделку",
+    "clientName": "ФИО клиента",
+    "phone": "Телефон",
+    "email": "Email",
+    "project": "Проект",
+    "program": "Программа/Тариф",
+    "status": "Статус",
+    "amount": "Сумма",
+    "manager": "Менеджер",
+    "date": "Дата",
+    "actions": "Действия",
+    "edit": "Редактировать",
+    "delete": "Удалить"
+  },
+  "status": {
+    "new": "Новая заявка",
+    "in_progress": "В работе",
+    "prepayment": "Предварительная оплата",
+    "partial": "Частичная оплата",
+    "completed": "Успешно завершена",
+    "cancelled": "Отменена/Отказ",
+    "frozen": "Заморожена"
+  },
+  "projects": {
+    "amazon": "Amazon",
+    "shopify": "Shopify",
+    "all": "Все"
+  },
+  "programs": {
+    "amazon_pro": "Amazon PRO",
+    "amazon_pro_plus": "Amazon PRO+",
+    "shopify_basic": "Shopify Basic",
+    "shopify_advanced": "Shopify Advanced"
+  },
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "add": "Добавить",
+    "search": "Поиск",
+    "export": "Экспорт",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успешно",
+    "confirm": "Подтвердить",
+    "close": "Закрыть",
+    "actions": "Действия",
+    "filter": "Фильтр",
+    "clear": "Очистить"
+  },
+  "export": {
+    "excel": "Excel (.xlsx)",
+    "pdf": "PDF отчет",
+    "selectFormat": "Выберите формат"
+  },
+  "forms": {
+    "required": "Обязательное поле",
+    "invalidEmail": "Неверный email",
+    "invalidPhone": "Неверный номер телефона"
+  },
+  "messages": {
+    "dealCreated": "Сделка успешно создана",
+    "dealUpdated": "Сделка успешно обновлена",
+    "dealDeleted": "Сделка успешно удалена",
+    "loginSuccess": "Вход выполнен успешно",
+    "loginError": "Ошибка входа",
+    "accessDenied": "Доступ запрещен",
+    "networkError": "Ошибка сети"
+  }
+}
