@@ -19,6 +19,24 @@ import {
   type ReturnWithDeal,
   type PlanWithManager
 } from "@shared/schema";
+import { 
+  USER_ROLES, 
+  PROJECTS, 
+  DEAL_STATUSES, 
+  RETURN_STATUSES,
+  PLAN_TYPES,
+  GENDERS,
+  projectToId,
+  dealStatusToId,
+  returnStatusToId,
+  projectToString,
+  dealStatusToString,
+  returnStatusToString,
+  genderToString,
+  type ProjectString,
+  type DealStatusString,
+  type ReturnStatusString
+} from "@shared/mappers";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, sql, count } from "drizzle-orm";
 
