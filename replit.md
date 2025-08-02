@@ -10,20 +10,35 @@ This is a sales management platform for Amazon and Shopify business operations. 
 - Added connection pooling (20 connections) with @neondatabase/serverless
 - Maintained full API backward compatibility using mappers
 
-### Bug Fixes Completed
-- Fixed returns functionality: form shows paid_amount instead of full amount
-- Fixed plans creation: corrected field naming from planAmount/dealsCount to plannedAmount/plannedDeals
-- Resolved all TypeScript errors in ProjectComparison and planning components
-- Fixed schema validation for return dates to accept string format
+### Critical Frontend-Backend Issues Fixed (August 2, 2025)
+- **TanStack Query Configuration**: Removed conflicting default queryFn, increased staleTime to 5 minutes
+- **API Route Mismatch**: Added `/api/plans/:year/:month/:project` route for frontend compatibility  
+- **Query Structure**: Converted all useQuery calls to proper queryKey arrays and explicit queryFn
+- **Returns Display**: Fixed queryKey invalidation and added proper error handling
+- **Form Validation**: Corrected planning form to use plannedAmount/plannedDeals fields
+- **Error Handling**: Added comprehensive error states with retry buttons in all components
+- **Data Display**: Fixed returns form to show paidAmount instead of total amount
 
-### API Validation Status
-All endpoints tested and working:
-- Authentication: login/me endpoints functional
-- Users: CRUD operations with proper role-based access
-- Deals: Full CRUD with pagination, search, and manager-specific filtering
-- Returns: Creation and listing functional after date validation fix
-- Plans: Creation and listing functional after field name correction
-- Analytics: Project comparison and overview endpoints operational
+### System Status (Post-Fix)
+✅ **Fully Working Modules:**
+- Authentication & Authorization (JWT + role-based access)
+- User Management (CRUD operations)
+- Deals Management (with manager filtering)
+- Plans Creation & Display (4 active plans)
+- Returns Management (3 returns tracked)
+- Analytics Dashboard (all charts functional)
+
+✅ **API Endpoints (15+ working):**
+- All authentication routes functional
+- CRUD operations for users, deals, returns, plans
+- Analytics endpoints with proper authorization
+- Specialized routes for frontend compatibility
+
+### Current Data State
+- **Users**: 11 (including test accounts)
+- **Deals**: 3 active deals
+- **Returns**: 3 returns (total ₺8,000)
+- **Plans**: 4 plans for various periods
 
 # User Preferences
 

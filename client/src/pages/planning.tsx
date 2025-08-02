@@ -73,14 +73,30 @@ export default function Planning() {
   }
 
   // Fetch plans data
-  const { data: plans = [], isLoading } = useQuery<PlanWithManager[]>({
-    queryKey: [`/api/plans/${selectedYear}/${selectedMonth}/${selectedProject}`],
+  const { data: plans = [], isLoading, error, refetch } = useQuery<PlanWithManager[]>({
+    queryKey: ['plans', selectedYear, selectedMonth, selectedProject],
+    queryFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/plans/${selectedYear}/${selectedMonth}/${selectedProject}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
     enabled: hasAccess,
   });
 
   // Fetch users for plan creation
   const { data: managers = [] } = useQuery({
-    queryKey: ['/api/users'],
+    queryKey: ['users'],
+    queryFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/users', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
     select: (data: any) => data.filter((user: any) => user.role === 'manager'),
     enabled: hasAccess,
   });
@@ -89,7 +105,7 @@ export default function Planning() {
   const createPlanMutation = useMutation({
     mutationFn: (data: any) => apiRequest('/api/plans', 'POST', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/plans'] });
+      queryClient.invalidateQueries({ queryKey: ['plans'] });
       setNewPlanOpen(false);
       resetForm();
       toast({
@@ -294,8 +310,21 @@ export default function Planning() {
             </Dialog>
           </div>
 
+          {/* Error State */}
+          {error && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-center py-8">
+                  <p className="text-red-500">Ошибка: {error.message}</p>
+                  <Button onClick={() => refetch()} className="mt-4">Повторить</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Overview Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {!error && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -368,8 +397,10 @@ export default function Planning() {
               </CardContent>
             </Card>
           </div>
+          )}
 
           {/* Plans Tabs */}
+          {!error && (
           <Tabs defaultValue="first_half" className="space-y-4">
             <TabsList>
               <TabsTrigger value="first_half">Первая половина месяца (1-15)</TabsTrigger>
@@ -500,6 +531,7 @@ export default function Planning() {
               </Card>
             </TabsContent>
           </Tabs>
+          )}
         </div>
       </main>
     </div>

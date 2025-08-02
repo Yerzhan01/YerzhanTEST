@@ -76,14 +76,31 @@ export default function Returns() {
   }
 
   // Fetch returns data  
-  const { data: returns = [], isLoading } = useQuery<Return[]>({
-    queryKey: [selectedStatus === 'all' ? '/api/returns/all' : `/api/returns/${selectedStatus}`],
+  const { data: returns = [], isLoading, error, refetch } = useQuery<Return[]>({
+    queryKey: ['returns', selectedStatus],
+    queryFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const url = selectedStatus === 'all' ? '/api/returns/all' : `/api/returns/${selectedStatus}`;
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
     enabled: hasAccess,
   });
 
   // Fetch deals for return creation
   const { data: deals = [] } = useQuery({
-    queryKey: ['/api/deals'],
+    queryKey: ['deals'],
+    queryFn: async () => {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/deals', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    },
     select: (data: any) => data.deals || [],
     enabled: hasAccess,
   });
@@ -92,7 +109,7 @@ export default function Returns() {
   const createReturnMutation = useMutation({
     mutationFn: (data: any) => apiRequest('/api/returns', 'POST', data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/returns'] });
+      queryClient.invalidateQueries({ queryKey: ['returns'] });
       setNewReturnOpen(false);
       setSelectedDealId('');
       setReturnAmount('');
@@ -229,7 +246,7 @@ export default function Returns() {
                         placeholder="0.00 ₺"
                         value={returnAmount}
                         onChange={(e) => setReturnAmount(e.target.value)}
-                        max={selectedDealId ? deals.find((d: any) => d.id === selectedDealId)?.paidAmount || 0 : undefined}
+
                       />
                       {selectedDealId && (
                         <p className="text-xs text-gray-500 mt-1">

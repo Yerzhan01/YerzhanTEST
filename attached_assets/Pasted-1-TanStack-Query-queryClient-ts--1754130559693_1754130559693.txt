@@ -1,0 +1,156 @@
+1. Проблема с TanStack Query конфигурацией
+Что неправильно:
+
+В queryClient.ts вы устанавливаете кастомный queryFn по умолчанию, который конфликтует с вашими компонентами
+staleTime: 0 означает что данные всегда считаются устаревшими
+Неправильная обработка ошибок
+
+Что нужно исправить:
+typescript// client/src/lib/queryClient.ts
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Убрать кастомный queryFn!
+      refetchInterval: false,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 минут кеширования
+      retry: 3,
+    },
+  },
+});
+2. Проблема с запросами в компонентах
+Что неправильно:
+
+Используете queryKey как URL: queryKey: ['/api/plans/...']
+Не указываете явно queryFn в компонентах
+Неправильная структура queryKey
+
+Что нужно исправить:
+typescript// Вместо этого:
+const { data: plans } = useQuery({
+  queryKey: [`/api/plans/${selectedYear}/${selectedMonth}/${selectedProject}`],
+});
+
+// Делайте так:
+const { data: plans } = useQuery({
+  queryKey: ['plans', selectedYear, selectedMonth, selectedProject],
+  queryFn: async () => {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`/api/plans/${selectedYear}/${selectedMonth}/${selectedProject}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  },
+});
+3. Проблема с планами
+Что неправильно:
+
+В форме создания плана используете planAmount вместо plannedAmount
+Неправильная валидация полей
+
+Что нужно исправить:
+typescript// В planning.tsx при создании плана:
+createPlanMutation.mutate({
+  project: planProject,
+  managerId: planManagerId,
+  planType,
+  year: parseInt(selectedYear),
+  month: parseInt(selectedMonth),
+  plannedAmount: parseFloat(plannedAmount), // Не planAmount!
+  plannedDeals: parseInt(plannedDeals),     // Не dealsCount!
+});
+4. Проблема с возвратами
+Что неправильно:
+
+Статусы возвратов не имеют управления (нет кнопок для изменения статуса)
+В форме показывается полная сумма сделки вместо оплаченной
+
+Что нужно добавить:
+
+Кнопки управления статусами для админов:
+
+typescript// Добавить в таблицу возвратов
+<TableCell className="text-right">
+  {user?.role === 'admin' && returnItem.status !== 'completed' && (
+    <div className="flex gap-2">
+      {returnItem.status === 'requested' && (
+        <Button size="sm" onClick={() => updateReturnStatus(returnItem.id, 'processing')}>
+          В обработку
+        </Button>
+      )}
+      {returnItem.status === 'processing' && (
+        <>
+          <Button size="sm" onClick={() => updateReturnStatus(returnItem.id, 'completed')}>
+            Завершить
+          </Button>
+          <Button size="sm" variant="destructive" onClick={() => updateReturnStatus(returnItem.id, 'rejected')}>
+            Отклонить
+          </Button>
+        </>
+      )}
+    </div>
+  )}
+</TableCell>
+
+Исправить отображение суммы в форме возврата:
+
+typescript// При выборе сделки показывать paidAmount, а не amount
+{selectedDealId && (
+  <p className="text-xs text-gray-500 mt-1">
+    Максимум: {formatCurrency(deals.find(d => d.id === selectedDealId)?.paidAmount || '0')} (оплаченная сумма)
+  </p>
+)}
+5. Проблема с аналитикой
+Что неправильно:
+
+Компонент аналитики не получает данные из-за проблем с queryKey
+Нет обработки ошибок при загрузке
+
+Что нужно исправить:
+typescript// В analytics.tsx исправить все запросы:
+const { data: overviewData = {}, isLoading: overviewLoading } = useQuery({
+  queryKey: ['analytics-overview', queryParams.period, queryParams.project],
+  queryFn: async () => {
+    const token = localStorage.getItem('auth_token');
+    const params = new URLSearchParams(queryParams);
+    const response = await fetch(`/api/analytics/overview?${params}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.json();
+  },
+});
+6. Общие рекомендации
+
+Добавьте обработку ошибок во все компоненты:
+
+typescriptif (error) {
+  return (
+    <div className="text-center py-8">
+      <p className="text-red-500">Ошибка: {error.message}</p>
+      <Button onClick={() => refetch()}>Повторить</Button>
+    </div>
+  );
+}
+
+Унифицируйте запросы - создайте хелпер:
+
+typescript// utils/api.ts
+export const fetchWithAuth = async (url: string, options = {}) => {
+  const token = localStorage.getItem('auth_token');
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return response.json();
+};
+
+Проверьте бэкенд endpoints - убедитесь что все API маршруты работают и возвращают правильную структуру данных.
+
+Начните с исправления queryClient.ts, затем планы, потом возвраты и аналитику. Это должно решить большинство проблем.
