@@ -76,7 +76,7 @@ export default function Returns() {
   }
 
   // Fetch returns data
-  const { data: returns = [], isLoading } = useQuery({
+  const { data: returns = [], isLoading } = useQuery<Return[]>({
     queryKey: ['/api/returns', selectedStatus],
     enabled: hasAccess,
   });
@@ -90,10 +90,7 @@ export default function Returns() {
 
   // Create return mutation
   const createReturnMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/returns', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    mutationFn: (data: any) => apiRequest('/api/returns', 'POST', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/returns'] });
       setNewReturnOpen(false);
@@ -124,10 +121,23 @@ export default function Returns() {
       return;
     }
 
+    const selectedDeal = deals.find((d: any) => d.id === selectedDealId);
+    const maxAmount = parseFloat(selectedDeal?.paidAmount || '0');
+    const requestedAmount = parseFloat(returnAmount);
+
+    if (requestedAmount > maxAmount) {
+      toast({
+        title: "Ошибка",
+        description: `Сумма возврата не может превышать оплаченную сумму (${formatCurrency(maxAmount.toString())})`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     createReturnMutation.mutate({
       dealId: selectedDealId,
       returnDate: new Date().toISOString(),
-      returnAmount: parseFloat(returnAmount),
+      returnAmount: requestedAmount,
       returnReason,
       status: 'requested',
     });
@@ -137,7 +147,7 @@ export default function Returns() {
     const statusConfig = {
       requested: { label: 'Запрошен', variant: 'outline' as const, icon: Clock },
       processing: { label: 'В обработке', variant: 'default' as const, icon: AlertCircle },
-      completed: { label: 'Завершен', variant: 'success' as const, icon: CheckCircle },
+      completed: { label: 'Завершен', variant: 'default' as const, icon: CheckCircle },
       rejected: { label: 'Отклонен', variant: 'destructive' as const, icon: XCircle },
     };
     
@@ -205,7 +215,7 @@ export default function Returns() {
                         <SelectContent>
                           {deals.map((deal: any) => (
                             <SelectItem key={deal.id} value={deal.id}>
-                              {deal.clientName} - {deal.program} ({formatCurrency(deal.amount)})
+                              {deal.clientName} - {deal.program} (Оплачено: {formatCurrency(deal.paidAmount || '0')})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -219,7 +229,13 @@ export default function Returns() {
                         placeholder="0.00 ₺"
                         value={returnAmount}
                         onChange={(e) => setReturnAmount(e.target.value)}
+                        max={selectedDealId ? deals.find((d: any) => d.id === selectedDealId)?.paidAmount || 0 : undefined}
                       />
+                      {selectedDealId && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Максимум: {formatCurrency(deals.find((d: any) => d.id === selectedDealId)?.paidAmount || '0')} (оплаченная сумма)
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="reason">Причина возврата *</Label>
@@ -257,7 +273,7 @@ export default function Returns() {
                       Общая сумма возвратов
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(returns.reduce((sum: number, ret: Return) => sum + parseFloat(ret.returnAmount), 0).toString())}
+                      {formatCurrency((returns as Return[]).reduce((sum: number, ret: Return) => sum + parseFloat(ret.returnAmount), 0).toString())}
                     </p>
                   </div>
                 </div>
@@ -275,7 +291,7 @@ export default function Returns() {
                       В обработке
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {returns.filter((ret: Return) => ret.status === 'processing').length}
+                      {(returns as Return[]).filter((ret: Return) => ret.status === 'processing').length}
                     </p>
                   </div>
                 </div>
@@ -293,7 +309,7 @@ export default function Returns() {
                       Завершенные
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {returns.filter((ret: Return) => ret.status === 'completed').length}
+                      {(returns as Return[]).filter((ret: Return) => ret.status === 'completed').length}
                     </p>
                   </div>
                 </div>
@@ -311,7 +327,7 @@ export default function Returns() {
                       Отклоненные
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {returns.filter((ret: Return) => ret.status === 'rejected').length}
+                      {(returns as Return[]).filter((ret: Return) => ret.status === 'rejected').length}
                     </p>
                   </div>
                 </div>
@@ -345,7 +361,7 @@ export default function Returns() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {returns.map((returnItem: Return) => (
+                    {(returns as Return[]).map((returnItem: Return) => (
                       <TableRow key={returnItem.id}>
                         <TableCell>
                           <div>

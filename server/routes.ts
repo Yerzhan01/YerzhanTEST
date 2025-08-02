@@ -271,11 +271,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const filters: any = {};
       if (dealId) filters.dealId = dealId;
-      if (status) filters.status = status;
+      if (status && status !== 'all') filters.status = status;
       if (dateFrom) filters.dateFrom = new Date(dateFrom as string);
       if (dateTo) filters.dateTo = new Date(dateTo as string);
       
       const returns = await storage.getReturns(filters);
+      res.json(returns);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch returns' });
+    }
+  });
+
+  app.get("/api/returns/all", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const returns = await storage.getReturns({});
       res.json(returns);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch returns' });
