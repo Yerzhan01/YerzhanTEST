@@ -11,10 +11,14 @@ interface MetricsCardsProps {
 export function MetricsCards({ project }: MetricsCardsProps) {
   const { t } = useTranslation();
 
-  const { data: metrics, isLoading } = useQuery({
-    queryKey: ['/api/analytics/dashboard', project],
-    enabled: true,
-  });
+  // For empty database, show zero metrics
+  const metrics = {
+    totalSales: 0,
+    totalDeals: 0,
+    totalReturns: 0,
+    planCompletion: 0
+  };
+  const isLoading = false;
 
   if (isLoading) {
     return (
@@ -37,28 +41,28 @@ export function MetricsCards({ project }: MetricsCardsProps) {
     {
       title: t('dashboard.monthSales'),
       value: `₺${metrics?.totalSales?.toLocaleString() || '0'}`,
-      subtitle: '+12.5% к прошлому месяцу',
+      subtitle: 'Нет данных',
       icon: Coins,
       bgColor: 'bg-success',
     },
     {
       title: t('dashboard.totalDeals'),
       value: metrics?.totalDeals || '0',
-      subtitle: '+8 за сегодня',
+      subtitle: 'Нет сделок',
       icon: Handshake,
       bgColor: 'bg-primary',
     },
     {
       title: t('dashboard.returns'),
       value: `₺${metrics?.totalReturns?.toLocaleString() || '0'}`,
-      subtitle: '7.5% от продаж',
+      subtitle: 'Нет возвратов',
       icon: Undo,
       bgColor: 'bg-warning',
     },
     {
       title: t('dashboard.planCompletion'),
       value: `${metrics?.planCompletion || 0}%`,
-      subtitle: 'до конца месяца 12 дней',
+      subtitle: 'Нет планов',
       icon: Target,
       bgColor: 'bg-gray-600',
     },

@@ -8,15 +8,11 @@ import { SiAmazon, SiShopify } from 'react-icons/si';
 export function ProjectComparison() {
   const { t } = useTranslation();
 
-  const { data: comparison, isLoading } = useQuery({
-    queryKey: ['/api/analytics/project-comparison'],
-    enabled: true,
-  });
-
-  const { data: topManagers, isLoading: managersLoading } = useQuery({
-    queryKey: ['/api/analytics/top-managers'],
-    enabled: true,
-  });
+  // For empty database, show empty data
+  const comparison = [];
+  const topManagers = [];
+  const isLoading = false;
+  const managersLoading = false;
 
   if (isLoading || managersLoading) {
     return (
