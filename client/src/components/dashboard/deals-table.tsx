@@ -30,17 +30,34 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
   const [page, setPage] = useState(1);
 
   const { data: dealsResponse, isLoading, refetch, error } = useQuery({
-    queryKey: ['/api/deals', page, search, searchBy],
+    queryKey: ['deals', page, search, searchBy],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '10',
+        ...(search && { search, searchBy })
+      });
+      
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/deals?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return response.json();
+    },
     enabled: true,
     refetchOnWindowFocus: false,
     staleTime: 0,
-    refetchInterval: 5000,
+    refetchInterval: false,
   });
 
-  // Show error state
-  if (error) {
-    console.error('Query error:', error);
-  }
+  // Remove debug logging since deals are now working
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
