@@ -1,0 +1,175 @@
+1. Проблемы с авторизацией и безопасностью
+Что неправильно:
+
+В use-auth.tsx при логауте токен удаляется только из localStorage, но не инвалидируются запросы
+Нет проверки на истечение токена
+Токен хранится в localStorage (уязвимо для XSS)
+
+Что нужно исправить:
+typescript// В use-auth.tsx
+const logout = () => {
+  localStorage.removeItem('auth_token');
+  setUser(null);
+  // ДОБАВИТЬ: очистка всех кешированных запросов
+  queryClient.clear();
+  // ДОБАВИТЬ: редирект на логин
+  window.location.href = '/login';
+};
+2. Проблемы с валидацией данных
+Что неправильно:
+
+В DealForm нет валидации номера телефона
+Суммы могут быть отрицательными
+Нет проверки дублирования планов
+
+Что нужно добавить:
+typescript// В deal-form.tsx добавить валидацию
+const dealSchema = z.object({
+  // ...
+  phone: z.string()
+    .min(1, 'Phone is required')
+    .regex(/^\+?[\d\s-()]+$/, 'Invalid phone format'),
+  amount: z.string()
+    .min(1, 'Amount is required')
+    .refine(val => parseFloat(val) > 0, 'Amount must be positive'),
+  paidAmount: z.string()
+    .refine(val => parseFloat(val) >= 0, 'Paid amount cannot be negative'),
+});
+3. Проблемы с пагинацией
+Что неправильно:
+
+В DealsTable пагинация работает некорректно - page в состоянии компонента, но не синхронизируется с URL
+При изменении фильтров page не сбрасывается
+
+Что нужно исправить:
+typescript// В deals-table.tsx
+const [search, setSearch] = useState('');
+const [page, setPage] = useState(1);
+
+// ДОБАВИТЬ: сброс страницы при изменении поиска
+useEffect(() => {
+  setPage(1);
+}, [search, searchBy]);
+4. Проблемы с типизацией
+Что неправильно:
+
+Много any типов в компонентах
+Нет типизации для API ответов
+Badge компонент использует несуществующие варианты
+
+Что нужно исправить:
+typescript// Создать типы для API ответов
+interface DealsResponse {
+  deals: Deal[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+// Исправить Badge варианты
+<Badge variant={progress >= 80 ? "default" : progress >= 60 ? "secondary" : "destructive"}>
+  {progress}%
+</Badge>
+5. Проблемы с состоянием загрузки
+Что неправильно:
+
+В формах кнопки не показывают состояние загрузки правильно
+Нет индикаторов загрузки при мутациях
+Skeleton загрузка не везде реализована
+
+Что нужно добавить:
+typescript// В формах
+<Button 
+  type="submit" 
+  disabled={createMutation.isPending || updateMutation.isPending}
+>
+  {createMutation.isPending || updateMutation.isPending ? (
+    <>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      Сохранение...
+    </>
+  ) : (
+    deal ? 'Сохранить' : 'Создать'
+  )}
+</Button>
+6. Проблемы с интернационализацией
+Что неправильно:
+
+Много хардкодных строк не переведено
+Переключение языка не везде работает
+Форматирование дат не учитывает локаль
+
+Что нужно исправить:
+typescript// Добавить переводы в локали и использовать t()
+<CardTitle>{t('dashboard.salesChart')}</CardTitle>
+
+// Форматирование дат с учетом языка
+{format(new Date(deal.createdAt), 'dd.MM.yyyy', { 
+  locale: i18n.language === 'ru' ? ru : tr 
+})}
+7. Проблемы с производительностью
+Что неправильно:
+
+В ProjectComparison и SalesChart нет оптимизации ререндеров
+Большие таблицы не виртуализированы
+Нет debounce для поиска
+
+Что нужно добавить:
+typescript// Debounce для поиска
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
+
+const [searchInput, setSearchInput] = useState('');
+const debouncedSearch = useDebouncedValue(searchInput, 300);
+
+// Использовать debouncedSearch в queryKey
+8. Проблемы с UX
+Что неправильно:
+
+Нет подтверждения при удалении
+Нет уведомлений об успешных операциях
+Формы не сбрасываются после успешной отправки
+
+Что нужно добавить:
+typescript// Подтверждение удаления
+const handleDelete = async (id: string) => {
+  if (!confirm('Вы уверены, что хотите удалить эту запись?')) return;
+  // ... логика удаления
+};
+
+// Уведомления
+onSuccess: () => {
+  toast({
+    title: "Успешно",
+    description: "Операция выполнена успешно",
+  });
+  form.reset();
+},
+9. Проблемы с данными
+Что неправильно:
+
+В monthly-report.tsx нет реальных данных, только моки
+Статистика в дашборде не соответствует реальным данным
+Нет обработки пустых состояний
+
+Что нужно исправить:
+
+Подключить реальные API для всех статистических данных
+Добавить обработку пустых состояний с соответствующими сообщениями
+
+10. Проблемы с маршрутизацией
+Что неправильно:
+
+Нет защиты от прямого доступа к URL страниц без авторизации
+При истечении токена пользователь не перенаправляется на логин
+
+Что нужно добавить:
+typescript// В App.tsx добавить глобальную проверку токена
+useEffect(() => {
+  const token = localStorage.getItem('auth_token');
+  if (!token && location !== '/login') {
+    setLocation('/login');
+  }
+}, [location]);

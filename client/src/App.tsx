@@ -1,4 +1,5 @@
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
+import { useEffect } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -63,6 +64,27 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  const [location, setLocation] = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Global token validation and redirect logic
+  useEffect(() => {
+    const token = localStorage.getItem('auth_token');
+    
+    // If no token and trying to access protected route, redirect to login
+    if (!token && location !== '/login') {
+      setLocation('/login');
+    }
+    
+    // If token exists but user not authenticated and not loading, clear invalid token
+    if (token && !isAuthenticated && !isLoading) {
+      localStorage.removeItem('auth_token');
+      if (location !== '/login') {
+        setLocation('/login');
+      }
+    }
+  }, [location, isAuthenticated, isLoading, setLocation]);
+
   return (
     <Switch>
       <Route path="/login">

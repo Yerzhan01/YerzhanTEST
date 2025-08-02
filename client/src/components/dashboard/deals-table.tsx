@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,17 +27,24 @@ interface DealsTableProps {
 
 export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProps) {
   const { t } = useTranslation();
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
   const [searchBy, setSearchBy] = useState('client');
   const [page, setPage] = useState(1);
+  
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, searchBy]);
 
   const { data: dealsResponse, isLoading, refetch, error } = useQuery({
-    queryKey: ['deals', page, search, searchBy],
+    queryKey: ['deals', page, debouncedSearch, searchBy],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
-        ...(search && { search, searchBy })
+        ...(debouncedSearch && { search: debouncedSearch, searchBy })
       });
       
       const token = localStorage.getItem('auth_token');
@@ -138,8 +146,8 @@ export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProp
                   searchBy === 'phone' ? 'Поиск по номеру телефона...' :
                   'Поиск по менеджеру...'
                 }
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-10 w-64"
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />

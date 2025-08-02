@@ -84,9 +84,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     localStorage.removeItem('auth_token');
     setUser(null);
+    
+    // Clear all cached queries to prevent data leaks
+    const { queryClient } = await import('@/lib/queryClient');
+    queryClient.clear();
+    
+    toast({
+      title: t('messages.logoutSuccess'),
+      variant: 'default',
+    });
+    
+    // Force redirect to login page
+    window.location.href = '/login';
   };
 
   const value = {

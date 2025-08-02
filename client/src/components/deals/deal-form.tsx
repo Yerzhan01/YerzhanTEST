@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Loader2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -27,14 +28,20 @@ import { useAuth } from '@/hooks/use-auth';
 
 const dealSchema = z.object({
   clientName: z.string().min(1, 'Client name is required'),
-  phone: z.string().min(1, 'Phone is required'),
+  phone: z.string()
+    .min(1, 'Phone is required')
+    .regex(/^\+?[\d\s\-()]+$/, 'Invalid phone format'),
   email: z.string().email().optional().or(z.literal('')),
   project: z.enum(['amazon', 'shopify']),
   program: z.string().min(1, 'Program is required'),
   managerId: z.string().optional(),
   status: z.enum(['new', 'in_progress', 'prepayment', 'partial', 'completed', 'cancelled', 'frozen']),
-  amount: z.string().min(1, 'Amount is required'),
-  paidAmount: z.string().default('0'),
+  amount: z.string()
+    .min(1, 'Amount is required')
+    .refine(val => parseFloat(val) > 0, 'Amount must be positive'),
+  paidAmount: z.string()
+    .default('0')
+    .refine(val => parseFloat(val) >= 0, 'Paid amount cannot be negative'),
   source: z.string().optional(),
   marketingChannel: z.string().optional(),
   paymentMethod: z.string().optional(),
@@ -353,7 +360,14 @@ export function DealForm({ isOpen, onClose, deal }: DealFormProps) {
               type="submit" 
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {deal ? t('common.save') : t('deals.addDeal')}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Сохранение...
+                </>
+              ) : (
+                deal ? t('common.save') : t('deals.addDeal')
+              )}
             </Button>
           </DialogFooter>
         </form>
