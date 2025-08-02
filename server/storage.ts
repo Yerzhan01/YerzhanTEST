@@ -59,6 +59,7 @@ export interface IStorage {
   getProjectsComparison(): Promise<any[]>;
   getConversionFunnel(project?: string): Promise<any>;
   getReturnsAnalysis(period: string): Promise<any[]>;
+  getMonthlyReport(filters: any): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -331,7 +332,7 @@ export class DatabaseStorage implements IStorage {
 
     const [overview] = await db
       .select({
-        totalRevenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+        grossRevenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
         activeDeals: sql<number>`COUNT(CASE WHEN ${deals.status} IN ('new', 'in_progress', 'prepayment', 'partial') THEN 1 END)`,
         completedDeals: sql<number>`COUNT(CASE WHEN ${deals.status} = 'completed' THEN 1 END)`,
         totalDeals: sql<number>`COUNT(${deals.id})`,
@@ -339,13 +340,29 @@ export class DatabaseStorage implements IStorage {
       .from(deals)
       .where(and(...baseConditions));
 
+    // Get returns for deals made in this period (returns are calculated by deal creation date, not return date)
+    const [returnsForPeriod] = await db
+      .select({
+        totalReturns: sql<number>`COALESCE(SUM(CAST(${returns.returnAmount} AS DECIMAL)), 0)`,
+      })
+      .from(returns)
+      .innerJoin(deals, eq(returns.dealId, deals.id))
+      .where(and(
+        gte(deals.createdAt, startDate),
+        lte(deals.createdAt, now),
+        eq(returns.status, 'completed'),
+        ...(project && project !== 'all' ? [eq(deals.project, project)] : [])
+      ));
+
     // Calculate conversion rate
     const conversionRate = overview.totalDeals > 0 
       ? (overview.completedDeals / overview.totalDeals) * 100 
       : 0;
 
     return {
-      totalRevenue: overview.totalRevenue,
+      grossRevenue: overview.grossRevenue,
+      totalReturns: returnsForPeriod.totalReturns,
+      netRevenue: overview.grossRevenue - returnsForPeriod.totalReturns,
       activeDeals: overview.activeDeals,
       conversionRate,
       planCompletion: 85.5, // Mock data for now
@@ -368,9 +385,10 @@ export class DatabaseStorage implements IStorage {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
 
-      const [result] = await db
+      // Get gross revenue for the day
+      const [revenueResult] = await db
         .select({
-          revenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+          grossRevenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
         })
         .from(deals)
         .where(and(
@@ -378,10 +396,28 @@ export class DatabaseStorage implements IStorage {
           lte(deals.createdAt, endOfDay),
           eq(deals.status, 'completed')
         ));
+
+      // Get returns for deals made on this day (regardless of when return was processed)
+      const [returnsResult] = await db
+        .select({
+          totalReturns: sql<number>`COALESCE(SUM(CAST(${returns.returnAmount} AS DECIMAL)), 0)`,
+        })
+        .from(returns)
+        .innerJoin(deals, eq(returns.dealId, deals.id))
+        .where(and(
+          gte(deals.createdAt, startOfDay),
+          lte(deals.createdAt, endOfDay),
+          eq(returns.status, 'completed')
+        ));
+      
+      const grossRevenue = revenueResult.grossRevenue || 0;
+      const totalReturns = returnsResult.totalReturns || 0;
       
       data.push({
         period: date.toISOString().split('T')[0],
-        revenue: result.revenue || 0,
+        grossRevenue,
+        returns: totalReturns,
+        netRevenue: grossRevenue - totalReturns,
       });
     }
     
@@ -475,6 +511,59 @@ export class DatabaseStorage implements IStorage {
     }
     
     return data;
+  }
+
+  async getMonthlyReport(filters: any): Promise<any> {
+    const { year, month, project } = filters;
+    
+    // Calculate month boundaries
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // Base conditions for the month
+    const baseConditions = [
+      gte(deals.createdAt, startDate),
+      lte(deals.createdAt, endDate)
+    ];
+
+    if (project && project !== 'all') {
+      baseConditions.push(eq(deals.project, project));
+    }
+
+    // Get gross revenue for the month
+    const [revenueData] = await db
+      .select({
+        grossRevenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+        totalDeals: sql<number>`COUNT(${deals.id})`,
+      })
+      .from(deals)
+      .where(and(...baseConditions, eq(deals.status, 'completed')));
+
+    // Get returns for deals made in this month (regardless of when return was processed)
+    const [returnsData] = await db
+      .select({
+        totalReturns: sql<number>`COALESCE(SUM(CAST(${returns.returnAmount} AS DECIMAL)), 0)`,
+        totalReturnCount: sql<number>`COUNT(${returns.id})`,
+      })
+      .from(returns)
+      .innerJoin(deals, eq(returns.dealId, deals.id))
+      .where(and(
+        gte(deals.createdAt, startDate),
+        lte(deals.createdAt, endDate),
+        eq(returns.status, 'completed'),
+        ...(project && project !== 'all' ? [eq(deals.project, project)] : [])
+      ));
+
+    return {
+      grossRevenue: revenueData.grossRevenue || 0,
+      totalReturns: returnsData.totalReturns || 0,
+      netRevenue: (revenueData.grossRevenue || 0) - (returnsData.totalReturns || 0),
+      totalDeals: revenueData.totalDeals || 0,
+      returnCount: returnsData.totalReturnCount || 0,
+      sales: [], // Simplified for now
+      returns: [], // Simplified for now
+      managerStats: [], // Simplified for now
+    };
   }
 }
 

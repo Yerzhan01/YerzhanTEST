@@ -14,6 +14,7 @@ import Deals from "@/pages/deals";
 import Returns from "@/pages/returns";
 import Planning from "@/pages/planning";
 import Analytics from "@/pages/analytics";
+import MonthlyReport from "@/pages/monthly-report";
 import Managers from "@/pages/managers";
 import Settings from "@/pages/settings";
 import NotFound from "@/pages/not-found";
@@ -97,6 +98,12 @@ function Router() {
       <Route path="/analytics">
         <ProtectedRoute>
           <Analytics />
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/monthly-report">
+        <ProtectedRoute>
+          <MonthlyReport />
         </ProtectedRoute>
       </Route>
       

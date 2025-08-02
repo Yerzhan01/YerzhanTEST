@@ -571,6 +571,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/analytics/monthly-report", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { year, month, project } = req.query;
+      const report = await storage.getMonthlyReport({
+        year: parseInt(year as string),
+        month: parseInt(month as string),
+        project: project as string,
+      });
+      res.json(report);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch monthly report' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

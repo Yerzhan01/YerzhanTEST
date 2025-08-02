@@ -10,7 +10,8 @@ import {
   BarChart3, 
   Users, 
   Settings,
-  User
+  User,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,7 @@ const navigationItems = {
     { icon: Undo, label: 'navigation.returns', href: '/returns' },
     { icon: Calendar, label: 'navigation.planning', href: '/planning' },
     { icon: BarChart3, label: 'navigation.analytics', href: '/analytics' },
+    { icon: FileText, label: 'Месячный отчет', href: '/monthly-report' },
     { icon: Users, label: 'navigation.managers', href: '/managers' },
     { icon: Settings, label: 'navigation.settings', href: '/settings' },
   ],
@@ -32,6 +34,7 @@ const navigationItems = {
   ],
   financist: [
     { icon: BarChart3, label: 'navigation.analytics', href: '/analytics' },
+    { icon: FileText, label: 'Месячный отчет', href: '/monthly-report' },
     { icon: Handshake, label: 'navigation.deals', href: '/deals' },
     { icon: Undo, label: 'navigation.returns', href: '/returns' },
     { icon: Calendar, label: 'navigation.planning', href: '/planning' },

@@ -129,10 +129,52 @@ export default function Analytics() {
                   </div>
                   <div className="ml-4">
                     <p className="text-sm font-medium text-gray-600">
-                      Общая выручка
+                      Валовая выручка
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(overviewData.totalRevenue || 0)}
+                      {formatCurrency(overviewData.grossRevenue || 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Без учета возвратов
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <TrendingDown className="text-red-600 h-5 w-5" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">
+                      Возвраты за период
+                    </p>
+                    <p className="text-2xl font-bold text-red-600">
+                      -{formatCurrency(overviewData.totalReturns || 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      По дате покупки
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center">
+                  <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Target className="text-green-600 h-5 w-5" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">
+                      Чистая выручка
+                    </p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {formatCurrency((overviewData.grossRevenue || 0) - (overviewData.totalReturns || 0))}
                     </p>
                     <div className="flex items-center mt-1">
                       {(overviewData.revenueGrowth || 0) >= 0 ? (
@@ -240,8 +282,16 @@ export default function Analytics() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="period" />
                         <YAxis tickFormatter={(value) => formatCurrency(value)} />
-                        <Tooltip formatter={(value: any) => [formatCurrency(value), 'Выручка']} />
-                        <Line type="monotone" dataKey="revenue" stroke="#3B82F6" strokeWidth={2} />
+                        <Tooltip 
+                          formatter={(value: any, name: string) => [
+                            formatCurrency(value), 
+                            name === 'grossRevenue' ? 'Валовая выручка' : 
+                            name === 'returns' ? 'Возвраты' : 'Чистая выручка'
+                          ]} 
+                        />
+                        <Line type="monotone" dataKey="grossRevenue" stroke="#3B82F6" strokeWidth={2} name="Валовая выручка" />
+                        <Line type="monotone" dataKey="returns" stroke="#EF4444" strokeWidth={2} name="Возвраты" />
+                        <Line type="monotone" dataKey="netRevenue" stroke="#10B981" strokeWidth={3} name="Чистая выручка" />
                       </LineChart>
                     </ResponsiveContainer>
                   )}
