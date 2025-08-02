@@ -15,19 +15,10 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { Plan } from '@shared/schema';
 import { Plus, Target, TrendingUp, Calendar, Users } from 'lucide-react';
 
-interface Plan {
-  id: string;
-  project: 'amazon' | 'shopify';
-  managerId: string;
-  planType: 'first_half' | 'second_half';
-  year: number;
-  month: number;
-  plannedAmount: string;
-  plannedDeals: number;
-  isActive: boolean;
-  createdAt: string;
+interface PlanWithManager extends Plan {
   manager: {
     id: string;
     fullName: string;
@@ -82,7 +73,7 @@ export default function Planning() {
   }
 
   // Fetch plans data
-  const { data: plans = [], isLoading } = useQuery({
+  const { data: plans = [], isLoading } = useQuery<PlanWithManager[]>({
     queryKey: ['/api/plans', selectedYear, selectedMonth, selectedProject],
     enabled: hasAccess,
   });
@@ -96,10 +87,7 @@ export default function Planning() {
 
   // Create plan mutation
   const createPlanMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/plans', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
+    mutationFn: (data: any) => apiRequest('/api/plans', 'POST', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/plans'] });
       setNewPlanOpen(false);
@@ -149,7 +137,7 @@ export default function Planning() {
 
   const formatCurrency = (value: string) => `₺${parseFloat(value).toLocaleString()}`;
 
-  const getPlanProgress = (plan: Plan) => {
+  const getPlanProgress = (plan: PlanWithManager) => {
     // Mock calculation - in real app, this would be calculated from actual deals
     return Math.floor(Math.random() * 100);
   };
@@ -410,8 +398,8 @@ export default function Planning() {
                       </TableHeader>
                       <TableBody>
                         {plans
-                          .filter((plan: Plan) => plan.planType === 'first_half')
-                          .map((plan: Plan) => {
+                          .filter((plan: PlanWithManager) => plan.planType === 'first_half')
+                          .map((plan: PlanWithManager) => {
                             const progress = getPlanProgress(plan);
                             return (
                               <TableRow key={plan.id}>
@@ -428,7 +416,7 @@ export default function Planning() {
                                 </TableCell>
                                 <TableCell>{plan.plannedDeals}</TableCell>
                                 <TableCell>
-                                  <Badge variant={progress >= 80 ? "success" : progress >= 60 ? "default" : "destructive"}>
+                                  <Badge variant={progress >= 80 ? "default" : progress >= 60 ? "outline" : "destructive"}>
                                     {progress}%
                                   </Badge>
                                 </TableCell>
@@ -472,8 +460,8 @@ export default function Planning() {
                       </TableHeader>
                       <TableBody>
                         {plans
-                          .filter((plan: Plan) => plan.planType === 'second_half')
-                          .map((plan: Plan) => {
+                          .filter((plan: PlanWithManager) => plan.planType === 'second_half')
+                          .map((plan: PlanWithManager) => {
                             const progress = getPlanProgress(plan);
                             return (
                               <TableRow key={plan.id}>
@@ -490,7 +478,7 @@ export default function Planning() {
                                 </TableCell>
                                 <TableCell>{plan.plannedDeals}</TableCell>
                                 <TableCell>
-                                  <Badge variant={progress >= 80 ? "success" : progress >= 60 ? "default" : "destructive"}>
+                                  <Badge variant={progress >= 80 ? "default" : progress >= 60 ? "outline" : "destructive"}>
                                     {progress}%
                                   </Badge>
                                 </TableCell>
