@@ -15,15 +15,16 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { apiRequest } from '@/lib/queryClient';
 import { Deal } from '@shared/schema';
 
-const dealSchema = z.object({
+// Form data (as strings from inputs)
+const dealFormSchema = z.object({
   clientName: z.string().min(1, 'Имя клиента обязательно'),
   phone: z.string().min(1, 'Телефон обязателен'),
   email: z.string().email('Неверный email').optional().or(z.literal('')),
   project: z.enum(['amazon', 'shopify'], { required_error: 'Выберите проект' }),
   program: z.string().min(1, 'Выберите программу'),
   managerId: z.string().min(1, 'Выберите менеджера'),
-  amount: z.string().min(1, 'Сумма обязательна').transform(val => parseFloat(val)),
-  paidAmount: z.string().optional().transform(val => val ? parseFloat(val) : 0),
+  amount: z.string().min(1, 'Сумма обязательна'),
+  paidAmount: z.string().optional(),
   source: z.string().optional(),
   marketingChannel: z.string().optional(),
   paymentMethod: z.string().optional(),
@@ -33,7 +34,15 @@ const dealSchema = z.object({
   bankOrderNumber: z.string().optional(),
 });
 
-type DealFormData = z.infer<typeof dealSchema>;
+// API data (with proper types)
+const dealSchema = dealFormSchema.transform((data) => ({
+  ...data,
+  amount: parseFloat(data.amount),
+  paidAmount: data.paidAmount ? parseFloat(data.paidAmount) : 0,
+}));
+
+type DealFormData = z.infer<typeof dealFormSchema>;
+type DealAPIData = z.infer<typeof dealSchema>;
 
 interface DealFormProps {
   deal?: Deal;
@@ -58,7 +67,7 @@ export function DealForm({ deal, isOpen = true, onClose, onSuccess, onCancel }: 
   });
 
   const form = useForm<DealFormData>({
-    resolver: zodResolver(dealSchema),
+    resolver: zodResolver(dealFormSchema),
     defaultValues: {
       clientName: deal?.clientName || '',
       phone: deal?.phone || '',
@@ -67,7 +76,7 @@ export function DealForm({ deal, isOpen = true, onClose, onSuccess, onCancel }: 
       program: deal?.program || '',
       managerId: deal?.managerId || (user?.role === 'manager' ? user.id : ''),
       amount: deal?.amount ? deal.amount.toString() : '',
-      paidAmount: deal?.paidAmount ? deal.paidAmount.toString() : '0',
+      paidAmount: deal?.paidAmount ? deal.paidAmount.toString() : '',
       source: deal?.source || '',
       marketingChannel: deal?.marketingChannel || '',
       paymentMethod: deal?.paymentMethod || '',
@@ -81,11 +90,12 @@ export function DealForm({ deal, isOpen = true, onClose, onSuccess, onCancel }: 
   const selectedProject = form.watch('project');
 
   const saveMutation = useMutation({
-    mutationFn: async (data: DealFormData) => {
-      // Numbers are already converted by schema transform
+    mutationFn: async (formData: DealFormData) => {
+      // Transform form data to API data
+      const data: DealAPIData = dealSchema.parse(formData);
       const payload = {
         ...data,
-        remainingAmount: data.amount - (data.paidAmount || 0),
+        remainingAmount: data.amount - data.paidAmount,
       };
 
       if (deal) {
