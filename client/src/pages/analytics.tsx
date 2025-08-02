@@ -6,18 +6,23 @@ import { Header } from '@/components/ui/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
-import { TrendingUp, TrendingDown, Users, Target, DollarSign, Calendar, Download } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Target, DollarSign, Calendar, Download, Filter } from 'lucide-react';
 
 export default function Analytics() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [selectedProject, setSelectedProject] = useState('all');
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   // Check if user has access to financial analytics
   const hasAccess = user?.role === 'admin' || user?.role === 'financist';
@@ -48,29 +53,47 @@ export default function Analytics() {
     );
   }
 
+  // Build query parameters for custom date range
+  const getQueryParams = () => {
+    if (selectedPeriod === 'custom' && customDateFrom && customDateTo) {
+      return {
+        period: selectedPeriod,
+        project: selectedProject,
+        dateFrom: customDateFrom,
+        dateTo: customDateTo
+      };
+    }
+    return {
+      period: selectedPeriod,
+      project: selectedProject
+    };
+  };
+
   // Fetch analytics data
+  const queryParams = getQueryParams();
+  
   const { data: overviewData = {}, isLoading: overviewLoading } = useQuery({
-    queryKey: ['/api/analytics/overview', selectedPeriod, selectedProject],
+    queryKey: ['/api/analytics/overview', queryParams.period, queryParams.project, queryParams.dateFrom, queryParams.dateTo],
   });
 
   const { data: revenueData = [], isLoading: revenueLoading } = useQuery({
-    queryKey: ['/api/analytics/revenue-trend', selectedPeriod],
+    queryKey: ['/api/analytics/revenue-trend', queryParams.period, queryParams.dateFrom, queryParams.dateTo],
   });
 
   const { data: managersData = [], isLoading: managersLoading } = useQuery({
-    queryKey: ['/api/analytics/managers-performance', selectedProject],
+    queryKey: ['/api/analytics/managers-performance', queryParams.project, queryParams.dateFrom, queryParams.dateTo],
   });
 
   const { data: projectsData = [], isLoading: projectsLoading } = useQuery({
-    queryKey: ['/api/analytics/projects-comparison'],
+    queryKey: ['/api/analytics/projects-comparison', queryParams.dateFrom, queryParams.dateTo],
   });
 
   const { data: conversionData = {}, isLoading: conversionLoading } = useQuery({
-    queryKey: ['/api/analytics/conversion-funnel', selectedProject],
+    queryKey: ['/api/analytics/conversion-funnel', queryParams.project, queryParams.dateFrom, queryParams.dateTo],
   });
 
   const { data: returnsData = [], isLoading: returnsLoading } = useQuery({
-    queryKey: ['/api/analytics/returns-analysis', selectedPeriod],
+    queryKey: ['/api/analytics/returns-analysis', queryParams.period, queryParams.dateFrom, queryParams.dateTo],
   });
 
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
@@ -87,36 +110,104 @@ export default function Analytics() {
       <main className="flex-1 overflow-y-auto p-6">
         <div className="space-y-6">
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-between">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="week">Последняя неделя</SelectItem>
-                  <SelectItem value="month">Последний месяц</SelectItem>
-                  <SelectItem value="quarter">Последний квартал</SelectItem>
-                  <SelectItem value="year">Последний год</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between">
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Сегодня</SelectItem>
+                    <SelectItem value="week">Последняя неделя</SelectItem>
+                    <SelectItem value="month">Последний месяц</SelectItem>
+                    <SelectItem value="quarter">Последний квартал</SelectItem>
+                    <SelectItem value="year">Последний год</SelectItem>
+                    <SelectItem value="custom">Выбрать период</SelectItem>
+                  </SelectContent>
+                </Select>
 
-              <Select value={selectedProject} onValueChange={setSelectedProject}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Все проекты</SelectItem>
-                  <SelectItem value="amazon">Amazon</SelectItem>
-                  <SelectItem value="shopify">Shopify</SelectItem>
-                </SelectContent>
-              </Select>
+                <Select value={selectedProject} onValueChange={setSelectedProject}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все проекты</SelectItem>
+                    <SelectItem value="amazon">Amazon</SelectItem>
+                    <SelectItem value="shopify">Shopify</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2"
+                >
+                  <Filter className="h-4 w-4" />
+                  Фильтры
+                </Button>
+              </div>
+              
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Экспорт отчета
+              </Button>
             </div>
-            
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Экспорт отчета
-            </Button>
+
+            {/* Custom Date Range */}
+            {(selectedPeriod === 'custom' || showFilters) && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <Label htmlFor="dateFrom">Дата от</Label>
+                      <Input
+                        id="dateFrom"
+                        type="date"
+                        value={customDateFrom}
+                        onChange={(e) => setCustomDateFrom(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dateTo">Дата до</Label>
+                      <Input
+                        id="dateTo"
+                        type="date"
+                        value={customDateTo}
+                        onChange={(e) => setCustomDateTo(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        onClick={() => {
+                          // Trigger data refresh with custom dates
+                          setSelectedPeriod('custom');
+                        }}
+                        className="w-full"
+                      >
+                        Применить
+                      </Button>
+                    </div>
+                    <div className="flex items-end">
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setCustomDateFrom('');
+                          setCustomDateTo('');
+                          setSelectedPeriod('month');
+                          setShowFilters(false);
+                        }}
+                        className="w-full"
+                      >
+                        Сбросить
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Overview Cards */}

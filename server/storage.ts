@@ -119,8 +119,47 @@ export class DatabaseStorage implements IStorage {
     let query = db
       .select()
       .from(deals)
-      .leftJoin(users, eq(deals.managerId, users.id))
-      .orderBy(desc(deals.createdAt));
+      .leftJoin(users, eq(deals.managerId, users.id));
+
+    // Apply filters
+    const conditions = [];
+    
+    if (filters.managerId) {
+      conditions.push(eq(deals.managerId, filters.managerId));
+    }
+    
+    if (filters.project) {
+      conditions.push(eq(deals.project, filters.project));
+    }
+    
+    if (filters.status) {
+      conditions.push(eq(deals.status, filters.status));
+    }
+    
+    if (filters.dateFrom) {
+      conditions.push(gte(deals.createdAt, filters.dateFrom));
+    }
+    
+    if (filters.dateTo) {
+      conditions.push(lte(deals.createdAt, filters.dateTo));
+    }
+    
+    // Add search functionality
+    if (filters.search && filters.searchBy) {
+      if (filters.searchBy === 'client') {
+        conditions.push(sql`LOWER(${deals.clientName}) LIKE LOWER(${'%' + filters.search + '%'})`);
+      } else if (filters.searchBy === 'phone') {
+        conditions.push(sql`${deals.phone} LIKE ${'%' + filters.search + '%'}`);
+      } else if (filters.searchBy === 'manager') {
+        conditions.push(sql`LOWER(${users.fullName}) LIKE LOWER(${'%' + filters.search + '%'})`);
+      }
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(deals.createdAt));
 
     if (filters.limit) {
       query = query.limit(filters.limit);
@@ -138,7 +177,50 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDealsCount(filters: any): Promise<number> {
-    const [result] = await db.select({ count: count() }).from(deals);
+    let query = db.select({ count: count() }).from(deals);
+    
+    if (filters.search || filters.managerId || filters.project || filters.status || filters.dateFrom || filters.dateTo) {
+      query = query.leftJoin(users, eq(deals.managerId, users.id));
+      
+      const conditions = [];
+      
+      if (filters.managerId) {
+        conditions.push(eq(deals.managerId, filters.managerId));
+      }
+      
+      if (filters.project) {
+        conditions.push(eq(deals.project, filters.project));
+      }
+      
+      if (filters.status) {
+        conditions.push(eq(deals.status, filters.status));
+      }
+      
+      if (filters.dateFrom) {
+        conditions.push(gte(deals.createdAt, filters.dateFrom));
+      }
+      
+      if (filters.dateTo) {
+        conditions.push(lte(deals.createdAt, filters.dateTo));
+      }
+      
+      // Add search functionality
+      if (filters.search && filters.searchBy) {
+        if (filters.searchBy === 'client') {
+          conditions.push(sql`LOWER(${deals.clientName}) LIKE LOWER(${'%' + filters.search + '%'})`);
+        } else if (filters.searchBy === 'phone') {
+          conditions.push(sql`${deals.phone} LIKE ${'%' + filters.search + '%'}`);
+        } else if (filters.searchBy === 'manager') {
+          conditions.push(sql`LOWER(${users.fullName}) LIKE LOWER(${'%' + filters.search + '%'})`);
+        }
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    const [result] = await query;
     return result.count;
   }
 

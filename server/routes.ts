@@ -145,7 +145,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dateFrom, 
         dateTo, 
         page = 1, 
-        limit = 10 
+        limit = 10,
+        search,
+        searchBy = 'client'
       } = req.query;
       
       const filters: any = {
@@ -162,6 +164,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (status) filters.status = status;
       if (dateFrom) filters.dateFrom = new Date(dateFrom as string);
       if (dateTo) filters.dateTo = new Date(dateTo as string);
+      
+      // Add search functionality
+      if (search) {
+        filters.search = search as string;
+        filters.searchBy = searchBy as string;
+      }
       
       const [deals, total] = await Promise.all([
         storage.getDeals(filters),

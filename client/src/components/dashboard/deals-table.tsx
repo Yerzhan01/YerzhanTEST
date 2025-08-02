@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -25,10 +26,11 @@ interface DealsTableProps {
 export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
+  const [searchBy, setSearchBy] = useState('client');
   const [page, setPage] = useState(1);
 
   const { data: dealsResponse, isLoading } = useQuery({
-    queryKey: ['/api/deals', page, search],
+    queryKey: ['/api/deals', page, search, searchBy],
     enabled: true,
   });
 
@@ -88,12 +90,26 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle>{t('dashboard.recentDeals')}</CardTitle>
+          <CardTitle>Все сделки</CardTitle>
           <div className="flex items-center space-x-3">
+            <Select value={searchBy} onValueChange={setSearchBy}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="client">По клиенту</SelectItem>
+                <SelectItem value="phone">По номеру</SelectItem>
+                <SelectItem value="manager">По менеджеру</SelectItem>
+              </SelectContent>
+            </Select>
             <div className="relative">
               <Input
                 type="text"
-                placeholder={t('common.search')}
+                placeholder={
+                  searchBy === 'client' ? 'Поиск по имени клиента...' :
+                  searchBy === 'phone' ? 'Поиск по номеру телефона...' :
+                  'Поиск по менеджеру...'
+                }
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 w-64"
@@ -103,7 +119,7 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
             {onAddDeal && (
               <Button onClick={onAddDeal}>
                 <Plus className="mr-2 h-4 w-4" />
-                {t('deals.addDeal')}
+                Добавить сделку
               </Button>
             )}
           </div>
