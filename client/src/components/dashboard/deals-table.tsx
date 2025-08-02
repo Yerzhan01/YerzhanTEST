@@ -29,13 +29,18 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
   const [searchBy, setSearchBy] = useState('client');
   const [page, setPage] = useState(1);
 
-  const { data: dealsResponse, isLoading, refetch } = useQuery({
+  const { data: dealsResponse, isLoading, refetch, error } = useQuery({
     queryKey: ['/api/deals', page, search, searchBy],
     enabled: true,
     refetchOnWindowFocus: false,
-    staleTime: 0, // Always refetch
-    refetchInterval: 5000, // Refetch every 5 seconds for debugging
+    staleTime: 0,
+    refetchInterval: 5000,
   });
+
+  // Show error state
+  if (error) {
+    console.error('Query error:', error);
+  }
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
@@ -88,6 +93,8 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
 
   const deals = dealsResponse?.deals || [];
   const pagination = dealsResponse?.pagination;
+  
+  console.log('Rendering deals:', deals.length, 'deals found');
 
   return (
     <Card>

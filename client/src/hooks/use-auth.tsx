@@ -62,6 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('auth_token', data.token);
       setUser(data.user);
       
+      // Clear all cached queries to force re-fetch with new token
+      const { queryClient } = await import('@/lib/queryClient');
+      queryClient.clear();
+      
       toast({
         title: t('messages.loginSuccess'),
         variant: 'default',
