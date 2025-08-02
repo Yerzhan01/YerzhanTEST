@@ -202,7 +202,14 @@ export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProp
                     {getStatusBadge(deal.status)}
                   </TableCell>
                   <TableCell className="text-sm text-gray-900">
-                    ₽{Number(deal.amount).toLocaleString()}
+                    <div>
+                      <div>₺{Number(deal.amount).toLocaleString()}</div>
+                      {deal.paidAmount && Number(deal.paidAmount) > 0 && (
+                        <div className="text-xs text-green-600">
+                          Оплачено: ₺{Number(deal.paidAmount).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-900">
                     {deal.manager?.fullName || 'N/A'}
