@@ -22,8 +22,8 @@ const dealSchema = z.object({
   project: z.enum(['amazon', 'shopify'], { required_error: 'Выберите проект' }),
   program: z.string().min(1, 'Выберите программу'),
   managerId: z.string().min(1, 'Выберите менеджера'),
-  amount: z.string().min(1, 'Сумма обязательна'),
-  paidAmount: z.string().optional(),
+  amount: z.string().min(1, 'Сумма обязательна').transform(val => parseFloat(val)),
+  paidAmount: z.string().optional().transform(val => val ? parseFloat(val) : 0),
   source: z.string().optional(),
   marketingChannel: z.string().optional(),
   paymentMethod: z.string().optional(),
@@ -82,11 +82,10 @@ export function DealForm({ deal, isOpen = true, onClose, onSuccess, onCancel }: 
 
   const saveMutation = useMutation({
     mutationFn: async (data: DealFormData) => {
+      // Numbers are already converted by schema transform
       const payload = {
         ...data,
-        amount: parseFloat(data.amount),
-        paidAmount: data.paidAmount ? parseFloat(data.paidAmount) : 0,
-        remainingAmount: parseFloat(data.amount) - (data.paidAmount ? parseFloat(data.paidAmount) : 0),
+        remainingAmount: data.amount - (data.paidAmount || 0),
       };
 
       if (deal) {
