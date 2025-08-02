@@ -15,7 +15,7 @@ export function SalesChart({ project }: SalesChartProps) {
   const [days, setDays] = useState(7);
 
   // For empty database, show empty chart data
-  const chartData = [];
+  const chartData: any[] = [];
   const isLoading = false;
 
   if (isLoading) {

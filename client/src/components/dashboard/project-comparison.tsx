@@ -9,8 +9,8 @@ export function ProjectComparison() {
   const { t } = useTranslation();
 
   // For empty database, show empty data
-  const comparison = [];
-  const topManagers = [];
+  const comparison: any[] = [];
+  const topManagers: any[] = [];
   const isLoading = false;
   const managersLoading = false;
 
@@ -69,7 +69,7 @@ export function ProjectComparison() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {comparison?.map((project: any) => {
+          {comparison && comparison.length > 0 ? comparison.map((project: any) => {
             const Icon = projectIcons[project.project as keyof typeof projectIcons];
             const colorClass = projectColors[project.project as keyof typeof projectColors];
             
@@ -92,7 +92,11 @@ export function ProjectComparison() {
                 />
               </div>
             );
-          })}
+          }) : (
+            <div className="text-center py-8 text-gray-500">
+              <p>Нет данных для сравнения проектов</p>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 pt-6 border-t border-gray-200">
@@ -100,7 +104,7 @@ export function ProjectComparison() {
             {t('dashboard.topManagers')}
           </h4>
           <div className="space-y-3">
-            {topManagers?.map((manager: any) => {
+            {topManagers && topManagers.length > 0 ? topManagers.map((manager: any) => {
               const initials = manager.fullName
                 .split(' ')
                 .map((name: string) => name[0])
@@ -134,7 +138,11 @@ export function ProjectComparison() {
                   </div>
                 </div>
               );
-            })}
+            }) : (
+              <div className="text-center py-4 text-gray-500">
+                <p>Нет данных о менеджерах</p>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>
