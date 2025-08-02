@@ -158,6 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Managers can only see their own deals
       if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
+        console.log(`Manager ${req.user.id} (${req.user.fullName}) requesting deals with filters:`, filters);
       }
       
       if (project) filters.project = project;
@@ -176,6 +177,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getDealsCount(filters)
       ]);
       
+      console.log(`Found ${deals.length} deals for user ${req.user?.role}:${req.user?.id}`);
+      
       res.json({
         deals,
         pagination: {
@@ -186,6 +189,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
     } catch (error) {
+      console.error('Error fetching deals:', error);
       res.status(500).json({ message: 'Failed to fetch deals' });
     }
   });

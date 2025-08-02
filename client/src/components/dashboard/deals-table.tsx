@@ -15,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Plus, Edit, Trash } from 'lucide-react';
+import { Search, Plus, Edit, Trash, RefreshCw } from 'lucide-react';
 import { SiAmazon, SiShopify } from 'react-icons/si';
 
 interface DealsTableProps {
@@ -29,9 +29,11 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
   const [searchBy, setSearchBy] = useState('client');
   const [page, setPage] = useState(1);
 
-  const { data: dealsResponse, isLoading } = useQuery({
+  const { data: dealsResponse, isLoading, refetch } = useQuery({
     queryKey: ['/api/deals', page, search, searchBy],
     enabled: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0, // Always refetch
   });
 
   const getStatusBadge = (status: string) => {
@@ -116,6 +118,15 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
               />
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
             </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Обновить
+            </Button>
             {onAddDeal && (
               <Button onClick={onAddDeal}>
                 <Plus className="mr-2 h-4 w-4" />
