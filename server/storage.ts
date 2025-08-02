@@ -73,10 +73,6 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
-  }
-
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
@@ -119,7 +115,8 @@ export class DatabaseStorage implements IStorage {
     let query = db
       .select()
       .from(deals)
-      .leftJoin(users, eq(deals.managerId, users.id));
+      .leftJoin(users, eq(deals.managerId, users.id))
+      .orderBy(desc(deals.createdAt));
 
     // Apply filters
     const conditions = [];
@@ -158,8 +155,6 @@ export class DatabaseStorage implements IStorage {
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-    
-    query = query.orderBy(desc(deals.createdAt));
 
     if (filters.limit) {
       query = query.limit(filters.limit);
@@ -177,47 +172,53 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDealsCount(filters: any): Promise<number> {
-    let query = db.select({ count: count() }).from(deals);
+    const conditions = [];
     
-    if (filters.search || filters.managerId || filters.project || filters.status || filters.dateFrom || filters.dateTo) {
-      query = query.leftJoin(users, eq(deals.managerId, users.id));
+    if (filters.managerId) {
+      conditions.push(eq(deals.managerId, filters.managerId));
+    }
+    
+    if (filters.project) {
+      conditions.push(eq(deals.project, filters.project));
+    }
+    
+    if (filters.status) {
+      conditions.push(eq(deals.status, filters.status));
+    }
+    
+    if (filters.dateFrom) {
+      conditions.push(gte(deals.createdAt, filters.dateFrom));
+    }
+    
+    if (filters.dateTo) {
+      conditions.push(lte(deals.createdAt, filters.dateTo));
+    }
+    
+    let query;
+    
+    // Add search functionality that requires join
+    if (filters.search && filters.searchBy === 'manager') {
+      query = db
+        .select({ count: count() })
+        .from(deals)
+        .leftJoin(users, eq(deals.managerId, users.id));
       
-      const conditions = [];
+      conditions.push(sql`LOWER(${users.fullName}) LIKE LOWER(${'%' + filters.search + '%'})`);
+    } else {
+      query = db.select({ count: count() }).from(deals);
       
-      if (filters.managerId) {
-        conditions.push(eq(deals.managerId, filters.managerId));
-      }
-      
-      if (filters.project) {
-        conditions.push(eq(deals.project, filters.project));
-      }
-      
-      if (filters.status) {
-        conditions.push(eq(deals.status, filters.status));
-      }
-      
-      if (filters.dateFrom) {
-        conditions.push(gte(deals.createdAt, filters.dateFrom));
-      }
-      
-      if (filters.dateTo) {
-        conditions.push(lte(deals.createdAt, filters.dateTo));
-      }
-      
-      // Add search functionality
+      // Add search functionality for client and phone
       if (filters.search && filters.searchBy) {
         if (filters.searchBy === 'client') {
           conditions.push(sql`LOWER(${deals.clientName}) LIKE LOWER(${'%' + filters.search + '%'})`);
         } else if (filters.searchBy === 'phone') {
           conditions.push(sql`${deals.phone} LIKE ${'%' + filters.search + '%'}`);
-        } else if (filters.searchBy === 'manager') {
-          conditions.push(sql`LOWER(${users.fullName}) LIKE LOWER(${'%' + filters.search + '%'})`);
         }
       }
-      
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
     }
     
     const [result] = await query;

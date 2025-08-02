@@ -34,6 +34,7 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
     enabled: true,
     refetchOnWindowFocus: false,
     staleTime: 0, // Always refetch
+    refetchInterval: 5000, // Refetch every 5 seconds for debugging
   });
 
   const getStatusBadge = (status: string) => {
