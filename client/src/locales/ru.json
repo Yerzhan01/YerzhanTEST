@@ -73,6 +73,8 @@
     "edit": "Редактировать",
     "add": "Добавить",
     "search": "Поиск",
+    "currency": "₺",
+    "currencyName": "Турецкая лира",
     "export": "Экспорт",
     "loading": "Загрузка...",
     "error": "Ошибка",
@@ -93,10 +95,24 @@
     "invalidEmail": "Неверный email",
     "invalidPhone": "Неверный номер телефона"
   },
+  "planning": {
+    "title": "Планирование продаж",
+    "addPlan": "Добавить план",
+    "planType": "Тип плана",
+    "firstHalf": "До 16 числа",
+    "secondHalf": "После 16 числа",
+    "plannedAmount": "Плановая сумма",
+    "plannedDeals": "Плановое количество сделок",
+    "year": "Год",
+    "month": "Месяц",
+    "currentPlans": "Текущие планы"
+  },
   "messages": {
     "dealCreated": "Сделка успешно создана",
     "dealUpdated": "Сделка успешно обновлена",
     "dealDeleted": "Сделка успешно удалена",
+    "planCreated": "План успешно создан",
+    "planUpdated": "План успешно обновлен",
     "loginSuccess": "Вход выполнен успешно",
     "loginError": "Ошибка входа",
     "accessDenied": "Доступ запрещен",

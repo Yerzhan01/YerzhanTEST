@@ -1,15 +1,24 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { insertUserSchema, insertDealSchema, insertReturnSchema, insertPlanSchema } from "@shared/schema";
+import { insertUserSchema, insertDealSchema, insertReturnSchema, insertPlanSchema, type User } from "@shared/schema";
 import { z } from "zod";
+
+// Extend Express Request interface to include user
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User;
+    }
+  }
+}
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
 // Middleware for authentication
-const authenticateToken = async (req: any, res: any, next: any) => {
+const authenticateToken = async (req: Request, res: Response, next: any) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -32,8 +41,8 @@ const authenticateToken = async (req: any, res: any, next: any) => {
 
 // Role-based authorization middleware
 const authorize = (roles: string[]) => {
-  return (req: any, res: any, next: any) => {
-    if (!roles.includes(req.user.role)) {
+  return (req: Request, res: Response, next: any) => {
+    if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ message: 'Insufficient permissions' });
     }
     next();
@@ -70,6 +79,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get("/api/auth/me", authenticateToken, (req, res) => {
+    if (!req.user) {
+      return res.status(401).json({ message: 'User not found' });
+    }
     const { password: _, ...userWithoutPassword } = req.user;
     res.json(userWithoutPassword);
   });
@@ -140,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Managers can only see their own deals
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
       }
       
@@ -178,7 +190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Managers can only see their own deals
-      if (req.user.role === 'manager' && deal.managerId !== req.user.id) {
+      if (req.user && req.user.role === 'manager' && deal.managerId !== req.user.id) {
         return res.status(403).json({ message: 'Access denied' });
       }
       
@@ -193,7 +205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const dealData = insertDealSchema.parse(req.body);
       
       // Managers can only create deals for themselves
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         dealData.managerId = req.user.id;
       }
       
@@ -217,7 +229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Managers can only update their own deals
-      if (req.user.role === 'manager' && deal.managerId !== req.user.id) {
+      if (req.user && req.user.role === 'manager' && deal.managerId !== req.user.id) {
         return res.status(403).json({ message: 'Access denied' });
       }
       
@@ -287,7 +299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filters: any = {};
       
       // Managers can only see their own plans
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
       }
       
@@ -334,7 +346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filters: any = {};
       
       // Managers can only see their own analytics
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
       }
       
@@ -356,7 +368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filters: any = { days: Number(days) };
       
       // Managers can only see their own data
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
       }
       
@@ -394,7 +406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { format = 'excel', ...filters } = req.query;
       
       // Managers can only export their own deals
-      if (req.user.role === 'manager') {
+      if (req.user && req.user.role === 'manager') {
         filters.managerId = req.user.id;
       }
       

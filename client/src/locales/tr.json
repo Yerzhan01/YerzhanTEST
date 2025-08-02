@@ -73,6 +73,8 @@
     "edit": "Düzenle",
     "add": "Ekle",
     "search": "Ara",
+    "currency": "₺",
+    "currencyName": "Türk Lirası",
     "export": "Dışa Aktar",
     "loading": "Yükleniyor...",
     "error": "Hata",
@@ -92,6 +94,18 @@
     "required": "Zorunlu alan",
     "invalidEmail": "Geçersiz e-posta",
     "invalidPhone": "Geçersiz telefon numarası"
+  },
+  "planning": {
+    "title": "Satış Planlaması",
+    "addPlan": "Plan Ekle",
+    "planType": "Plan Türü",
+    "firstHalf": "16'dan Önce",
+    "secondHalf": "16'dan Sonra",
+    "plannedAmount": "Planlanan Tutar",
+    "plannedDeals": "Planlanan Anlaşma Sayısı",
+    "year": "Yıl",
+    "month": "Ay",
+    "currentPlans": "Mevcut Planlar"
   },
   "messages": {
     "dealCreated": "Anlaşma başarıyla oluşturuldu",
