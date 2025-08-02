@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiRequest } from '@/lib/queryClient';
 import { Deal } from '@shared/schema';
 
@@ -36,11 +37,13 @@ type DealFormData = z.infer<typeof dealSchema>;
 
 interface DealFormProps {
   deal?: Deal;
-  onSuccess: () => void;
-  onCancel: () => void;
+  isOpen?: boolean;
+  onClose: () => void;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 }
 
-export function DealForm({ deal, onSuccess, onCancel }: DealFormProps) {
+export function DealForm({ deal, isOpen = true, onClose, onSuccess, onCancel }: DealFormProps) {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -98,7 +101,8 @@ export function DealForm({ deal, onSuccess, onCancel }: DealFormProps) {
         title: deal ? 'Сделка обновлена' : 'Сделка создана',
         variant: 'default',
       });
-      onSuccess();
+      if (onSuccess) onSuccess();
+      onClose();
     },
     onError: (error: any) => {
       toast({
@@ -134,7 +138,16 @@ export function DealForm({ deal, onSuccess, onCancel }: DealFormProps) {
   }, [selectedProject, form]);
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{deal ? 'Редактировать сделку' : 'Создать новую сделку'}</DialogTitle>
+          <DialogDescription>
+            Заполните информацию о клиенте и параметрах сделки
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="clientName">Имя клиента *</Label>
@@ -361,14 +374,21 @@ export function DealForm({ deal, onSuccess, onCancel }: DealFormProps) {
         />
       </div>
 
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Отмена
-        </Button>
-        <Button type="submit" disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? 'Сохранение...' : (deal ? 'Обновить' : 'Создать')}
-        </Button>
-      </div>
-    </form>
+        </form>
+        
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={saveMutation.isPending}
+            onClick={form.handleSubmit(onSubmit)}
+          >
+            {saveMutation.isPending ? 'Сохранение...' : (deal ? 'Обновить' : 'Создать')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
