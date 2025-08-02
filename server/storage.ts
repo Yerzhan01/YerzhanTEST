@@ -312,10 +312,9 @@ export class DatabaseStorage implements IStorage {
     // Calculate metrics from real data
     const totalSalesResult = await db
       .select({ 
-        total: sql<number>`SUM(CAST(${deals.amount} AS NUMERIC))` 
+        total: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))` 
       })
-      .from(deals)
-      .where(eq(deals.status, 'completed'));
+      .from(deals);
 
     const totalDealsResult = await db
       .select({ count: count() })
@@ -323,14 +322,16 @@ export class DatabaseStorage implements IStorage {
 
     const totalReturnsResult = await db
       .select({ 
-        total: sql<number>`SUM(CAST(${returns.returnAmount} AS NUMERIC))` 
+        total: sql<string>`SUM(CAST(${returns.returnAmount} AS NUMERIC))` 
       })
       .from(returns);
 
+
+
     return {
-      totalSales: totalSalesResult[0]?.total || 0,
+      totalSales: Number(totalSalesResult[0]?.total) || 0,
       totalDeals: totalDealsResult[0]?.count || 0,
-      totalReturns: totalReturnsResult[0]?.total || 0,
+      totalReturns: Number(totalReturnsResult[0]?.total) || 0,
       planCompletion: 0 // TODO: Calculate from plans
     };
   }
@@ -344,40 +345,41 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         project: deals.project,
-        totalAmount: sql<number>`SUM(CAST(${deals.amount} AS NUMERIC))`,
+        totalAmount: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))`,
         count: count()
       })
       .from(deals)
-      .where(eq(deals.status, 'completed'))
       .groupBy(deals.project);
 
-    const total = results.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    const total = results.reduce((sum, item) => sum + (Number(item.totalAmount) || 0), 0);
 
-    return results.map(item => ({
-      project: item.project,
-      totalAmount: item.totalAmount || 0,
-      percentage: total > 0 ? Math.round((item.totalAmount || 0) / total * 100) : 0,
-      count: item.count
-    }));
+    return results.map(item => {
+      const amount = Number(item.totalAmount) || 0;
+      return {
+        project: item.project,
+        totalAmount: amount,
+        percentage: total > 0 ? Math.round(amount / total * 100) : 0,
+        count: item.count
+      };
+    });
   }
 
   async getTopManagers(limit: number): Promise<any[]> {
     const results = await db
       .select({
         manager: users,
-        totalSales: sql<number>`SUM(CAST(${deals.amount} AS NUMERIC))`,
+        totalSales: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))`,
         dealCount: count()
       })
       .from(deals)
       .leftJoin(users, eq(deals.managerId, users.id))
-      .where(eq(deals.status, 'completed'))
       .groupBy(users.id, users.username, users.fullName, users.email, users.role, users.project, users.isActive, users.createdAt, users.updatedAt)
       .orderBy(desc(sql`SUM(CAST(${deals.amount} AS NUMERIC))`))
       .limit(limit);
 
     return results.map(result => ({
       manager: result.manager,
-      totalSales: result.totalSales || 0,
+      totalSales: Number(result.totalSales) || 0,
       dealCount: result.dealCount,
       planCompletion: 0 // TODO: Calculate from plans
     }));
