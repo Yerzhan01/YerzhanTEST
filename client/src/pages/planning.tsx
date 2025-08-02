@@ -157,8 +157,8 @@ export default function Planning() {
   const formatCurrency = (value: string) => `₺${parseFloat(value).toLocaleString()}`;
 
   const getPlanProgress = (plan: PlanWithManager) => {
-    // Mock calculation - in real app, this would be calculated from actual deals
-    return Math.floor(Math.random() * 100);
+    // For empty database, return 0% progress
+    return 0;
   };
 
   const currentYear = new Date().getFullYear();
@@ -357,7 +357,7 @@ export default function Planning() {
                       Среднее выполнение
                     </p>
                     <p className="text-2xl font-bold text-gray-900">
-                      87.5%
+                      {plans.length > 0 ? `${Math.round(plans.reduce((sum, plan) => sum + getPlanProgress(plan), 0) / plans.length)}%` : '0%'}
                     </p>
                   </div>
                 </div>
