@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('auth_token');
     if (token) {
       checkAuth();
     } else {
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = await response.json();
       setUser(userData);
     } catch (error) {
-      localStorage.removeItem('token');
+      localStorage.removeItem('auth_token');
     } finally {
       setIsLoading(false);
     }
@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const data = await response.json();
-      localStorage.setItem('token', data.token);
+      localStorage.setItem('auth_token', data.token);
       setUser(data.user);
       
       toast({
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('auth_token');
     setUser(null);
   };
 

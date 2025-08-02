@@ -74,16 +74,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/logout", (req, res) => {
-    res.json({ message: 'Logged out successfully' });
+  // Get current user info
+  app.get("/api/auth/me", authenticateToken, async (req, res) => {
+    try {
+      const { password: _, ...userWithoutPassword } = req.user!;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to get user info' });
+    }
   });
 
-  app.get("/api/auth/me", authenticateToken, (req, res) => {
-    if (!req.user) {
-      return res.status(401).json({ message: 'User not found' });
-    }
-    const { password: _, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
+  app.post("/api/auth/logout", (req, res) => {
+    res.json({ message: 'Logged out successfully' });
   });
 
   // User routes (Admin only)

@@ -251,7 +251,7 @@ export default function Managers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users?.map((user: User) => (
+                    {Array.isArray(users) && users.map((user: User) => (
                       <TableRow key={user.id} className="hover:bg-gray-50">
                         <TableCell>
                           <div>
@@ -303,6 +303,13 @@ export default function Managers() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {!Array.isArray(users) || users.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                          Пользователи не найдены
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -407,14 +414,14 @@ export default function Managers() {
               <div>
                 <Label htmlFor="project">Проект</Label>
                 <Select
-                  value={form.watch('project') || ''}
-                  onValueChange={(value) => form.setValue('project', value as any || undefined)}
+                  value={form.watch('project') || 'all'}
+                  onValueChange={(value) => form.setValue('project', value === 'all' ? undefined : value as any)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Выберите проект" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Все проекты</SelectItem>
+                    <SelectItem value="all">Все проекты</SelectItem>
                     <SelectItem value="amazon">Amazon</SelectItem>
                     <SelectItem value="shopify">Shopify</SelectItem>
                   </SelectContent>
