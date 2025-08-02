@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
+import { SkeletonTable } from '@/components/ui/skeleton-table';
 import { Search, Plus, Edit, Trash, RefreshCw } from 'lucide-react';
 import { SiAmazon, SiShopify } from 'react-icons/si';
 
@@ -95,26 +95,7 @@ export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProp
   };
 
   if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Skeleton className="h-10 w-64" />
-              <Skeleton className="h-10 w-32" />
-            </div>
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <Skeleton key={index} className="h-12 w-full" />
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <SkeletonTable rows={limit} columns={7} />;
   }
 
   const deals = dealsResponse?.deals || [];

@@ -1,10 +1,14 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
+import { users } from "@shared/schema";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { insertUserSchema, insertDealSchema, insertReturnSchema, insertPlanSchema, type User } from "@shared/schema";
 import { z } from "zod";
+import { logger } from "./middleware/logger";
+import { authLimiter, apiLimiter } from "./middleware/rateLimiter";
 
 // Extend Express Request interface to include user
 declare global {
@@ -15,7 +19,10 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key-change-in-production";
+if (!process.env.JWT_SECRET) {
+  console.warn("⚠️  WARNING: Using default JWT_SECRET. Set JWT_SECRET environment variable in production!");
+}
 
 // Middleware for authentication
 const authenticateToken = async (req: Request, res: Response, next: any) => {
@@ -50,6 +57,34 @@ const authorize = (roles: string[]) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Apply rate limiting to API routes
+  app.use('/api', apiLimiter);
+  app.use('/api/auth/login', authLimiter);
+
+  // Health check endpoint
+  app.get('/health', async (req, res) => {
+    try {
+      // Test database connection
+      await db.select().from(users).limit(1);
+      
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        database: 'connected',
+        version: process.env.npm_package_version || '1.0.0'
+      });
+    } catch (error: any) {
+      logger.error('Health check failed', { error: error.message });
+      res.status(503).json({
+        status: 'unhealthy',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected',
+        error: error.message
+      });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -69,7 +104,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { password: _, ...userWithoutPassword } = user;
       res.json({ user: userWithoutPassword, token });
-    } catch (error) {
+    } catch (error: any) {
+      logger.error('Login failed', { 
+        error: error.message, 
+        ip: req.ip, 
+        username: req.body.username 
+      });
       res.status(500).json({ message: 'Login failed' });
     }
   });
