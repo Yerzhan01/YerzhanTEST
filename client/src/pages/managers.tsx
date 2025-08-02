@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,7 +34,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Edit, UserCheck, UserX, RefreshCw } from 'lucide-react';
 
@@ -65,7 +65,7 @@ export default function Managers() {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  // queryClient is imported from lib/queryClient
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
@@ -74,16 +74,14 @@ export default function Managers() {
 
   const { data: users, isLoading, refetch } = useQuery({
     queryKey: ['/api/users'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/users');
+      return response.json();
+    },
     enabled: hasAccess,
     staleTime: 5 * 60 * 1000, // 5 minutes cache
-    cacheTime: 10 * 60 * 1000, // 10 minutes in memory
+    gcTime: 10 * 60 * 1000, // 10 minutes in memory (renamed from cacheTime in v5)
     refetchOnWindowFocus: false,
-    onSuccess: (data) => {
-      console.log('Users loaded:', data);
-    },
-    onError: (error) => {
-      console.error('Failed to load users:', error);
-    }
   });
 
   const form = useForm<UserFormData>({
@@ -267,7 +265,6 @@ export default function Managers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {console.log('Rendering users:', users, 'isArray:', Array.isArray(users))}
                     {Array.isArray(users) && users.length > 0 ? users.map((user: User) => (
                       <TableRow key={user.id} className="hover:bg-gray-50">
                         <TableCell>
