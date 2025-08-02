@@ -309,10 +309,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardMetrics(filters: any): Promise<any> {
-    // Calculate metrics from real data
+    // Calculate metrics from real data - use paidAmount for actual sales
     const totalSalesResult = await db
       .select({ 
-        total: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))` 
+        total: sql<string>`SUM(CAST(${deals.paidAmount} AS NUMERIC))` 
       })
       .from(deals);
 
@@ -345,7 +345,7 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         project: deals.project,
-        totalAmount: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))`,
+        totalAmount: sql<string>`SUM(CAST(${deals.paidAmount} AS NUMERIC))`,
         count: count()
       })
       .from(deals)
@@ -368,13 +368,13 @@ export class DatabaseStorage implements IStorage {
     const results = await db
       .select({
         manager: users,
-        totalSales: sql<string>`SUM(CAST(${deals.amount} AS NUMERIC))`,
+        totalSales: sql<string>`SUM(CAST(${deals.paidAmount} AS NUMERIC))`,
         dealCount: count()
       })
       .from(deals)
       .leftJoin(users, eq(deals.managerId, users.id))
       .groupBy(users.id, users.username, users.fullName, users.email, users.role, users.project, users.isActive, users.createdAt, users.updatedAt)
-      .orderBy(desc(sql`SUM(CAST(${deals.amount} AS NUMERIC))`))
+      .orderBy(desc(sql`SUM(CAST(${deals.paidAmount} AS NUMERIC))`))
       .limit(limit);
 
     return results.map(result => ({
