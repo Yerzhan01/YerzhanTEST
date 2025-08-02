@@ -21,9 +21,10 @@ import { SiAmazon, SiShopify } from 'react-icons/si';
 interface DealsTableProps {
   onAddDeal?: () => void;
   onEditDeal?: (dealId: string) => void;
+  limit?: number;
 }
 
-export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
+export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProps) {
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [searchBy, setSearchBy] = useState('client');
@@ -34,7 +35,7 @@ export function DealsTable({ onAddDeal, onEditDeal }: DealsTableProps) {
     queryFn: async () => {
       const params = new URLSearchParams({
         page: page.toString(),
-        limit: '10',
+        limit: limit.toString(),
         ...(search && { search, searchBy })
       });
       

@@ -22,10 +22,23 @@ export default function Dashboard() {
     { id: '', label: t('projects.all'), icon: PieChart },
   ];
 
-  const handleEditDeal = (dealId: string) => {
-    // TODO: Fetch deal data by ID and set it
-    setEditingDeal({ id: dealId });
-    setIsDealFormOpen(true);
+  const handleEditDeal = async (dealId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/deals/${dealId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const dealData = await response.json();
+        setEditingDeal(dealData);
+        setIsDealFormOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch deal:', error);
+    }
   };
 
   const handleCloseDealForm = () => {
@@ -72,9 +85,10 @@ export default function Dashboard() {
         </div>
 
         {/* Recent Deals Table */}
-        <DealsTable
-          onAddDeal={() => setIsDealFormOpen(true)}
+        <DealsTable 
           onEditDeal={handleEditDeal}
+          onAddDeal={() => setIsDealFormOpen(true)}
+          limit={5}
         />
       </main>
 

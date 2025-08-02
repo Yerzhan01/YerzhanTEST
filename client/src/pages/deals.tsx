@@ -9,10 +9,23 @@ export default function Deals() {
   const [isDealFormOpen, setIsDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<any>(null);
 
-  const handleEditDeal = (dealId: string) => {
-    // TODO: Fetch deal data by ID
-    setEditingDeal({ id: dealId });
-    setIsDealFormOpen(true);
+  const handleEditDeal = async (dealId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/deals/${dealId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const dealData = await response.json();
+        setEditingDeal(dealData);
+        setIsDealFormOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch deal:', error);
+    }
   };
 
   const handleCloseDealForm = () => {

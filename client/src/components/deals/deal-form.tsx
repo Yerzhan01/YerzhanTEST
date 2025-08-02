@@ -86,7 +86,7 @@ export function DealForm({ isOpen, onClose, deal }: DealFormProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
       toast({
         title: t('messages.dealCreated'),
         variant: 'default',
@@ -109,7 +109,7 @@ export function DealForm({ isOpen, onClose, deal }: DealFormProps) {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/deals'] });
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
       toast({
         title: t('messages.dealUpdated'),
         variant: 'default',
