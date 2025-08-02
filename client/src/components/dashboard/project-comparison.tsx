@@ -105,14 +105,14 @@ export function ProjectComparison() {
           </h4>
           <div className="space-y-3">
             {topManagers?.map((manager: any) => {
-              const initials = manager.manager.fullName
+              const initials = manager.fullName
                 .split(' ')
                 .map((name: string) => name[0])
                 .join('')
                 .toUpperCase();
 
               return (
-                <div key={manager.manager.id} className="flex items-center justify-between">
+                <div key={manager.id} className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
                       <span className="text-white text-xs font-medium">
@@ -121,10 +121,10 @@ export function ProjectComparison() {
                     </div>
                     <div className="ml-3">
                       <p className="text-sm font-medium text-gray-900">
-                        {manager.manager.fullName}
+                        {manager.fullName}
                       </p>
                       <p className="text-xs text-gray-500">
-                        {manager.manager.project ? t(`projects.${manager.manager.project}`) : 'Все проекты'}
+                        {manager.project ? t(`projects.${manager.project}`) : 'Все проекты'}
                       </p>
                     </div>
                   </div>
@@ -132,7 +132,7 @@ export function ProjectComparison() {
                     <p className="text-sm font-bold text-gray-900">
                       ₺{manager.totalSales.toLocaleString()}
                     </p>
-                    <p className={`text-xs ${manager.planCompletion >= 100 ? 'text-success' : 'text-warning'}`}>
+                    <p className={`text-xs ${manager.planCompletion >= 100 ? 'text-green-600' : 'text-yellow-600'}`}>
                       {manager.planCompletion}% плана
                     </p>
                   </div>
