@@ -136,8 +136,8 @@ export default function Returns() {
 
     createReturnMutation.mutate({
       dealId: selectedDealId,
-      returnDate: new Date().toISOString(),
-      returnAmount: requestedAmount,
+      returnDate: new Date(),
+      returnAmount: requestedAmount.toString(),
       returnReason,
       status: 'requested',
     });

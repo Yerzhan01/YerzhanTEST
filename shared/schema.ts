@@ -131,6 +131,10 @@ export const insertReturnSchema = createInsertSchema(returns).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  returnDate: z.union([z.date(), z.string()]).transform(val => {
+    return typeof val === 'string' ? new Date(val) : val;
+  }),
 });
 
 export const insertPlanSchema = createInsertSchema(plans).omit({

@@ -165,22 +165,23 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Build query step by step to avoid TypeScript issues
-    let query = db
+    const query = db
       .select()
       .from(deals)
       .leftJoin(users, eq(deals.managerId, users.id))
-      .orderBy(desc(deals.createdAt));
+      .orderBy(desc(deals.createdAt))
+      .$dynamic();
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query.where(and(...conditions));
     }
 
     if (filters.limit) {
-      query = query.limit(filters.limit);
+      query.limit(filters.limit);
     }
     
     if (filters.offset) {
-      query = query.offset(filters.offset);
+      query.offset(filters.offset);
     }
 
     const results = await query;
@@ -296,30 +297,31 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(returns.returnDate, filters.dateTo));
     }
 
-    let query = db
+    const query = db
       .select()
       .from(returns)
       .leftJoin(deals, eq(returns.dealId, deals.id))
       .leftJoin(users, eq(returns.processedBy, users.id))
-      .orderBy(desc(returns.createdAt));
+      .orderBy(desc(returns.createdAt))
+      .$dynamic();
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query.where(and(...conditions));
     }
 
     if (filters.limit) {
-      query = query.limit(filters.limit);
+      query.limit(filters.limit);
     }
     
     if (filters.offset) {
-      query = query.offset(filters.offset);
+      query.offset(filters.offset);
     }
 
     const results = await query;
     return results.map(result => ({
       ...result.returns,
       deal: result.deals!,
-      processedBy: result.users?.id || null
+      processedBy: result.users || undefined
     }));
   }
 
@@ -359,22 +361,23 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(plans.month, filters.month));
     }
 
-    let query = db
+    const query = db
       .select()
       .from(plans)
       .leftJoin(users, eq(plans.managerId, users.id))
-      .orderBy(desc(plans.year), desc(plans.month));
+      .orderBy(desc(plans.year), desc(plans.month))
+      .$dynamic();
     
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      query.where(and(...conditions));
     }
 
     if (filters.limit) {
-      query = query.limit(filters.limit);
+      query.limit(filters.limit);
     }
     
     if (filters.offset) {
-      query = query.offset(filters.offset);
+      query.offset(filters.offset);
     }
 
     const results = await query;
@@ -418,17 +421,18 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Оптимизированный объединенный запрос для основных метрик
-    let metricsQuery = db
+    const metricsQuery = db
       .select({
         totalSales: sql<string>`COALESCE(SUM(CAST(${deals.paidAmount} AS NUMERIC)), 0)`,
         totalDeals: count(),
         avgDeal: sql<string>`COALESCE(AVG(CAST(${deals.paidAmount} AS NUMERIC)), 0)`,
         completedDeals: sql<number>`COUNT(CASE WHEN ${deals.status} = 'completed' THEN 1 END)`,
       })
-      .from(deals);
+      .from(deals)
+      .$dynamic();
 
     if (conditions.length > 0) {
-      metricsQuery = metricsQuery.where(and(...conditions));
+      metricsQuery.where(and(...conditions));
     }
 
     const [metrics] = await metricsQuery;
