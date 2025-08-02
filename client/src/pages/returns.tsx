@@ -75,9 +75,9 @@ export default function Returns() {
     );
   }
 
-  // Fetch returns data
+  // Fetch returns data  
   const { data: returns = [], isLoading } = useQuery<Return[]>({
-    queryKey: ['/api/returns', selectedStatus],
+    queryKey: [selectedStatus === 'all' ? '/api/returns/all' : `/api/returns/${selectedStatus}`],
     enabled: hasAccess,
   });
 
@@ -136,7 +136,7 @@ export default function Returns() {
 
     createReturnMutation.mutate({
       dealId: selectedDealId,
-      returnDate: new Date(),
+      returnDate: new Date().toISOString(),
       returnAmount: requestedAmount.toString(),
       returnReason,
       status: 'requested',

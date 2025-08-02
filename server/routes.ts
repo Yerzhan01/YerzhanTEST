@@ -361,6 +361,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Special route for frontend compatibility: /api/plans/:year/:month/:project
+  app.get("/api/plans/:year/:month/:project", authenticateToken, async (req, res) => {
+    try {
+      const { year, month, project } = req.params;
+      
+      const filters: any = {
+        year: Number(year),
+        month: Number(month),
+      };
+      
+      // Managers can only see their own plans
+      if (req.user && req.user.role === 'manager') {
+        filters.managerId = req.user.id;
+      }
+      
+      if (project !== 'all') {
+        filters.project = project;
+      }
+      
+      const plans = await storage.getPlans(filters);
+      res.json(plans);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch plans' });
+    }
+  });
+
   // Analytics routes
   app.get("/api/analytics/dashboard", authenticateToken, async (req, res) => {
     try {

@@ -74,7 +74,7 @@ export default function Planning() {
 
   // Fetch plans data
   const { data: plans = [], isLoading } = useQuery<PlanWithManager[]>({
-    queryKey: ['/api/plans', selectedYear, selectedMonth, selectedProject],
+    queryKey: [`/api/plans/${selectedYear}/${selectedMonth}/${selectedProject}`],
     enabled: hasAccess,
   });
 
