@@ -78,6 +78,12 @@ export default function Managers() {
     staleTime: 5 * 60 * 1000, // 5 minutes cache
     cacheTime: 10 * 60 * 1000, // 10 minutes in memory
     refetchOnWindowFocus: false,
+    onSuccess: (data) => {
+      console.log('Users loaded:', data);
+    },
+    onError: (error) => {
+      console.error('Failed to load users:', error);
+    }
   });
 
   const form = useForm<UserFormData>({
@@ -261,7 +267,8 @@ export default function Managers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.isArray(users) && users.map((user: User) => (
+                    {console.log('Rendering users:', users, 'isArray:', Array.isArray(users))}
+                    {Array.isArray(users) && users.length > 0 ? users.map((user: User) => (
                       <TableRow key={user.id} className="hover:bg-gray-50">
                         <TableCell>
                           <div>
@@ -312,11 +319,15 @@ export default function Managers() {
                           </Button>
                         </TableCell>
                       </TableRow>
-                    ))}
-                    {!Array.isArray(users) || users.length === 0 && (
+                    )) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-gray-500 py-8">
-                          Пользователи не найдены
+                        <TableCell colSpan={6} className="text-center py-4">
+                          {isLoading ? 'Загрузка пользователей...' : 'Пользователи не найдены'}
+                          {!Array.isArray(users) && users && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              Данные: {typeof users} - {JSON.stringify(users).substring(0, 100)}...
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
                     )}
