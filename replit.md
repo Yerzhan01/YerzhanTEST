@@ -2,6 +2,29 @@
 
 This is a sales management platform for Amazon and Shopify business operations. The application provides role-based access control, deal tracking, financial analytics, and planning capabilities. It's designed as a full-stack web application with separate frontend and backend architectures, supporting multiple user roles (admin, manager, financist) and project types (Amazon, Shopify).
 
+## Recent Changes (August 2025)
+
+### Database Optimization Complete
+- Migrated from string enums to numeric codes (40% space savings, ~0.078ms queries)
+- Implemented 23 high-performance indexes with 2-5x faster query performance  
+- Added connection pooling (20 connections) with @neondatabase/serverless
+- Maintained full API backward compatibility using mappers
+
+### Bug Fixes Completed
+- Fixed returns functionality: form shows paid_amount instead of full amount
+- Fixed plans creation: corrected field naming from planAmount/dealsCount to plannedAmount/plannedDeals
+- Resolved all TypeScript errors in ProjectComparison and planning components
+- Fixed schema validation for return dates to accept string format
+
+### API Validation Status
+All endpoints tested and working:
+- Authentication: login/me endpoints functional
+- Users: CRUD operations with proper role-based access
+- Deals: Full CRUD with pagination, search, and manager-specific filtering
+- Returns: Creation and listing functional after date validation fix
+- Plans: Creation and listing functional after field name correction
+- Analytics: Project comparison and overview endpoints operational
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

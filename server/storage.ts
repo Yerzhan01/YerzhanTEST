@@ -322,7 +322,7 @@ export class DatabaseStorage implements IStorage {
       ...result.returns,
       deal: result.deals!,
       processedBy: result.users || undefined
-    }));
+    })) as ReturnWithDeal[];
   }
 
   async createReturn(insertReturn: InsertReturn): Promise<Return> {
