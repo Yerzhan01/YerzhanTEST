@@ -75,8 +75,9 @@ export default function Managers() {
   const { data: users, isLoading, refetch } = useQuery({
     queryKey: ['/api/users'],
     enabled: hasAccess,
-    staleTime: 0, // Always refetch
-    refetchOnWindowFocus: true,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    cacheTime: 10 * 60 * 1000, // 10 minutes in memory
+    refetchOnWindowFocus: false,
   });
 
   const form = useForm<UserFormData>({

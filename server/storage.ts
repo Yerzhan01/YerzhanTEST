@@ -109,6 +109,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllUsers(): Promise<User[]> {
+    // Fast query with index on fullName
     return await db.select().from(users).orderBy(asc(users.fullName));
   }
 

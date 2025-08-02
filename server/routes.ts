@@ -131,10 +131,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User routes (Admin only)
   app.get("/api/users", authenticateToken, authorize(['admin']), async (req, res) => {
     try {
+      // Add caching headers
+      res.set('Cache-Control', 'private, max-age=300'); // 5 minutes
+      
       const users = await storage.getAllUsers();
+      // Remove passwords from response for security
       const usersWithoutPasswords = users.map(({ password, ...user }) => user);
       res.json(usersWithoutPasswords);
     } catch (error) {
+      logger.error('Failed to fetch users:', error);
       res.status(500).json({ message: 'Failed to fetch users' });
     }
   });
