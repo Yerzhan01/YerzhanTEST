@@ -1,0 +1,258 @@
+📊 ОПТИМИЗИРОВАННЫЕ ТАБЛИЦЫ
+1. USERS (Пользователи)
+sqlCREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) UNIQUE,
+    role user_role_enum NOT NULL,
+    project project_enum,
+    is_active BOOLEAN DEFAULT true,
+    deleted_at TIMESTAMP NULL, -- soft delete
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ограничения
+    CONSTRAINT check_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'),
+    CONSTRAINT check_username_length CHECK (char_length(username) >= 3)
+);
+
+-- Индексы
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_project ON users(project);
+CREATE INDEX idx_users_active ON users(is_active) WHERE deleted_at IS NULL;
+2. DEALS (Сделки) - ПАРТИЦИОНИРОВАННАЯ
+sqlCREATE TABLE deals (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_name VARCHAR(255) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    email VARCHAR(255),
+    project project_enum NOT NULL,
+    program VARCHAR(100) NOT NULL,
+    manager_id UUID NOT NULL,
+    status deal_status_enum NOT NULL DEFAULT 'new',
+    amount DECIMAL(12,2) NOT NULL,
+    paid_amount DECIMAL(12,2) DEFAULT 0,
+    -- remaining_amount убираем - будем вычислять
+    source VARCHAR(255),
+    marketing_channel VARCHAR(255),
+    payment_method VARCHAR(100),
+    gender gender_enum,
+    client_segment VARCHAR(100),
+    comments TEXT,
+    bank_order_number VARCHAR(100),
+    sale_month DATE NOT NULL, -- для партиционирования
+    deleted_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ограничения
+    CONSTRAINT fk_deals_manager FOREIGN KEY (manager_id) REFERENCES users(id),
+    CONSTRAINT check_amounts CHECK (amount > 0 AND paid_amount >= 0 AND paid_amount <= amount),
+    CONSTRAINT check_phone_format CHECK (phone ~* '^[+]?[0-9\s\-\(\)]+$')
+) PARTITION BY RANGE (sale_month);
+
+-- Партиции по месяцам (создаются автоматически)
+CREATE TABLE deals_2025_01 PARTITION OF deals FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
+CREATE TABLE deals_2025_02 PARTITION OF deals FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
+-- ... и так далее
+
+-- Индексы
+CREATE INDEX idx_deals_manager ON deals(manager_id);
+CREATE INDEX idx_deals_project_status ON deals(project, status);
+CREATE INDEX idx_deals_created_month ON deals(date_trunc('month', created_at));
+CREATE INDEX idx_deals_phone ON deals(phone); -- для поиска дублей
+CREATE UNIQUE INDEX idx_deals_bank_order ON deals(bank_order_number) WHERE bank_order_number IS NOT NULL;
+3. RETURNS (Возвраты)
+sqlCREATE TABLE returns (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    deal_id UUID NOT NULL,
+    return_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    return_amount DECIMAL(12,2) NOT NULL,
+    return_reason TEXT NOT NULL,
+    status return_status_enum NOT NULL DEFAULT 'requested',
+    processed_by UUID,
+    deleted_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ограничения
+    CONSTRAINT fk_returns_deal FOREIGN KEY (deal_id) REFERENCES deals(id),
+    CONSTRAINT fk_returns_processor FOREIGN KEY (processed_by) REFERENCES users(id),
+    CONSTRAINT check_return_amount CHECK (return_amount > 0)
+);
+
+-- Индексы
+CREATE INDEX idx_returns_deal ON returns(deal_id);
+CREATE INDEX idx_returns_status ON returns(status);
+CREATE INDEX idx_returns_date ON returns(return_date);
+4. PLANS (Планы)
+sqlCREATE TABLE plans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project project_enum NOT NULL,
+    manager_id UUID NOT NULL,
+    plan_type plan_type_enum NOT NULL,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    planned_amount DECIMAL(12,2) NOT NULL,
+    planned_deals INTEGER NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    deleted_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ограничения
+    CONSTRAINT fk_plans_manager FOREIGN KEY (manager_id) REFERENCES users(id),
+    CONSTRAINT check_year CHECK (year >= 2024 AND year <= 2030),
+    CONSTRAINT check_month CHECK (month >= 1 AND month <= 12),
+    CONSTRAINT check_planned_amounts CHECK (planned_amount > 0 AND planned_deals > 0),
+    CONSTRAINT unique_plan UNIQUE (project, manager_id, plan_type, year, month)
+);
+
+-- Индексы
+CREATE INDEX idx_plans_manager_period ON plans(manager_id, year, month);
+CREATE INDEX idx_plans_project_period ON plans(project, year, month);
+
+📈 АНАЛИТИЧЕСКИЕ ТАБЛИЦЫ (для производительности)
+5. MONTHLY_STATS (Кэш месячной статистики)
+sqlCREATE TABLE monthly_stats (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project project_enum NOT NULL,
+    manager_id UUID,
+    year INTEGER NOT NULL,
+    month INTEGER NOT NULL,
+    total_deals INTEGER DEFAULT 0,
+    total_amount DECIMAL(12,2) DEFAULT 0,
+    paid_amount DECIMAL(12,2) DEFAULT 0,
+    returns_amount DECIMAL(12,2) DEFAULT 0,
+    net_amount DECIMAL(12,2) GENERATED ALWAYS AS (paid_amount - returns_amount) STORED,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_monthly_stats_manager FOREIGN KEY (manager_id) REFERENCES users(id),
+    CONSTRAINT unique_monthly_stats UNIQUE (project, manager_id, year, month)
+);
+
+-- Индексы
+CREATE INDEX idx_monthly_stats_period ON monthly_stats(year, month);
+CREATE INDEX idx_monthly_stats_project ON monthly_stats(project, year, month);
+6. AUDIT_LOG (Журнал аудита)
+sqlCREATE TABLE audit_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    table_name VARCHAR(50) NOT NULL,
+    record_id UUID NOT NULL,
+    action VARCHAR(20) NOT NULL, -- INSERT, UPDATE, DELETE
+    old_values JSONB,
+    new_values JSONB,
+    changed_by UUID NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    CONSTRAINT fk_audit_user FOREIGN KEY (changed_by) REFERENCES users(id)
+);
+
+-- Индексы
+CREATE INDEX idx_audit_table_record ON audit_log(table_name, record_id);
+CREATE INDEX idx_audit_user_date ON audit_log(changed_by, changed_at);
+
+🎯 ВЫЧИСЛЯЕМЫЕ ПОЛЯ И VIEWS
+Представление с расчетными полями
+sqlCREATE VIEW deals_with_calculations AS
+SELECT 
+    d.*,
+    (d.amount - d.paid_amount) AS remaining_amount,
+    COALESCE(r.total_returns, 0) AS total_returns,
+    (d.paid_amount - COALESCE(r.total_returns, 0)) AS net_amount,
+    u.full_name AS manager_name
+FROM deals d
+LEFT JOIN users u ON d.manager_id = u.id
+LEFT JOIN (
+    SELECT 
+        deal_id, 
+        SUM(return_amount) AS total_returns
+    FROM returns 
+    WHERE status = 'completed'
+    GROUP BY deal_id
+) r ON d.id = r.deal_id
+WHERE d.deleted_at IS NULL;
+Аналитическое представление по месяцам
+sqlCREATE VIEW monthly_analytics AS
+SELECT 
+    DATE_TRUNC('month', d.created_at) AS month,
+    d.project,
+    d.manager_id,
+    u.full_name AS manager_name,
+    COUNT(*) AS total_deals,
+    SUM(d.amount) AS total_amount,
+    SUM(d.paid_amount) AS paid_amount,
+    COALESCE(SUM(r.return_amount), 0) AS returns_amount,
+    (SUM(d.paid_amount) - COALESCE(SUM(r.return_amount), 0)) AS net_amount
+FROM deals d
+LEFT JOIN users u ON d.manager_id = u.id
+LEFT JOIN returns r ON d.id = r.deal_id AND r.status = 'completed'
+WHERE d.deleted_at IS NULL
+GROUP BY DATE_TRUNC('month', d.created_at), d.project, d.manager_id, u.full_name;
+
+🔧 ТРИГГЕРЫ ДЛЯ АВТОМАТИЗАЦИИ
+Автообновление monthly_stats
+sqlCREATE OR REPLACE FUNCTION update_monthly_stats()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Логика обновления кэша статистики
+    INSERT INTO monthly_stats (project, manager_id, year, month, ...)
+    VALUES (...)
+    ON CONFLICT (project, manager_id, year, month)
+    DO UPDATE SET ...;
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER tr_deals_stats 
+    AFTER INSERT OR UPDATE OR DELETE ON deals
+    FOR EACH ROW EXECUTE FUNCTION update_monthly_stats();
+Аудит изменений
+sqlCREATE OR REPLACE FUNCTION audit_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by)
+    VALUES (
+        TG_TABLE_NAME,
+        COALESCE(NEW.id, OLD.id),
+        TG_OP,
+        CASE WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD) ELSE NULL END,
+        CASE WHEN TG_OP = 'INSERT' THEN to_jsonb(NEW) ELSE to_jsonb(NEW) END,
+        current_setting('app.current_user_id')::UUID
+    );
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Применяем к таблицам
+CREATE TRIGGER tr_deals_audit AFTER INSERT OR UPDATE OR DELETE ON deals
+    FOR EACH ROW EXECUTE FUNCTION audit_trigger();
+
+🚀 РЕКОМЕНДАЦИИ ПО ОПТИМИЗАЦИИ
+1. Производительность запросов
+
+Используйте prepared statements
+Ограничивайте выборки (LIMIT/OFFSET)
+Кэшируйте частые запросы в Redis
+Используйте connection pooling
+
+2. Мониторинг
+
+Настройте мониторинг медленных запросов
+Отслеживайте размер индексов
+Контролируйте рост партиций
+
+3. Бэкапы
+
+Автоматические ежедневные бэкапы
+Point-in-time recovery
+Тестирование восстановления
+
+4. Масштабирование
+
+Read replicas для аналитики
+Архивирование старых данных
+Горизонтальное шардирование при необходимости
