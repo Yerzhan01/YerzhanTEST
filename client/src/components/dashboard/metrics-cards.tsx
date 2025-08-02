@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { RussianRuble, Handshake, Undo, Target } from 'lucide-react';
+import { Coins, Handshake, Undo, Target } from 'lucide-react';
 
 interface MetricsCardsProps {
   project?: string;
@@ -36,9 +36,9 @@ export function MetricsCards({ project }: MetricsCardsProps) {
   const cards = [
     {
       title: t('dashboard.monthSales'),
-      value: `₽${metrics?.totalSales?.toLocaleString() || '0'}`,
+      value: `₺${metrics?.totalSales?.toLocaleString() || '0'}`,
       subtitle: '+12.5% к прошлому месяцу',
-      icon: RussianRuble,
+      icon: Coins,
       bgColor: 'bg-success',
     },
     {
@@ -50,7 +50,7 @@ export function MetricsCards({ project }: MetricsCardsProps) {
     },
     {
       title: t('dashboard.returns'),
-      value: `₽${metrics?.totalReturns?.toLocaleString() || '0'}`,
+      value: `₺${metrics?.totalReturns?.toLocaleString() || '0'}`,
       subtitle: '7.5% от продаж',
       icon: Undo,
       bgColor: 'bg-warning',

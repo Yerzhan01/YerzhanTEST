@@ -280,7 +280,7 @@ export function DealForm({ isOpen, onClose, deal }: DealFormProps) {
                 id="amount"
                 type="number"
                 {...form.register('amount')}
-                placeholder="0"
+                placeholder="0.00 ₺"
               />
               {form.formState.errors.amount && (
                 <p className="text-red-500 text-sm mt-1">
@@ -295,7 +295,7 @@ export function DealForm({ isOpen, onClose, deal }: DealFormProps) {
                 id="paidAmount"
                 type="number"
                 {...form.register('paidAmount')}
-                placeholder="0"
+                placeholder="0.00 ₺"
               />
             </div>
 

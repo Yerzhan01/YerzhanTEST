@@ -74,10 +74,10 @@ export function SalesChart({ project }: SalesChartProps) {
                 />
                 <YAxis 
                   tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => `₽${value.toLocaleString()}`}
+                  tickFormatter={(value) => `₺${value.toLocaleString()}`}
                 />
                 <Tooltip 
-                  formatter={(value: any) => [`₽${value.toLocaleString()}`, 'Продажи']}
+                  formatter={(value: any) => [`₺${value.toLocaleString()}`, 'Продажи']}
                   labelFormatter={(label) => `Дата: ${label}`}
                 />
                 <Line 

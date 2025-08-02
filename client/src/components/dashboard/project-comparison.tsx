@@ -87,7 +87,7 @@ export function ProjectComparison() {
                     </span>
                   </div>
                   <span className="text-sm font-bold text-gray-900">
-                    ₽{project.totalAmount.toLocaleString()} ({project.percentage}%)
+                    ₺{project.totalAmount.toLocaleString()} ({project.percentage}%)
                   </span>
                 </div>
                 <Progress 
@@ -130,7 +130,7 @@ export function ProjectComparison() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-bold text-gray-900">
-                      ₽{manager.totalSales.toLocaleString()}
+                      ₺{manager.totalSales.toLocaleString()}
                     </p>
                     <p className={`text-xs ${manager.planCompletion >= 100 ? 'text-success' : 'text-warning'}`}>
                       {manager.planCompletion}% плана

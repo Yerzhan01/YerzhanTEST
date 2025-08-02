@@ -430,6 +430,147 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Returns routes
+  app.get("/api/returns", authenticateToken, async (req, res) => {
+    try {
+      const { status } = req.query;
+      const returns = await storage.getReturns({
+        managerId: req.user!.role === 'manager' ? req.user!.id : undefined,
+        status: status as string,
+      });
+      res.json(returns);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch returns' });
+    }
+  });
+
+  app.post("/api/returns", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
+    try {
+      const validatedData = insertReturnSchema.parse(req.body);
+      const returnRecord = await storage.createReturn(validatedData);
+      res.status(201).json(returnRecord);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation failed', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to create return' });
+    }
+  });
+
+  app.put("/api/returns/:id", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const returnRecord = await storage.updateReturn(id, updateData);
+      res.json(returnRecord);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to update return' });
+    }
+  });
+
+  // Plans routes
+  app.get("/api/plans", authenticateToken, async (req, res) => {
+    try {
+      const { year, month, project } = req.query;
+      const plans = await storage.getPlans({
+        managerId: req.user!.role === 'manager' ? req.user!.id : undefined,
+        year: year ? parseInt(year as string) : undefined,
+        month: month ? parseInt(month as string) : undefined,
+        project: project as string,
+      });
+      res.json(plans);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch plans' });
+    }
+  });
+
+  app.post("/api/plans", authenticateToken, authorize(['admin']), async (req, res) => {
+    try {
+      const validatedData = insertPlanSchema.parse(req.body);
+      const plan = await storage.createPlan(validatedData);
+      res.status(201).json(plan);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation failed', errors: error.errors });
+      }
+      res.status(500).json({ message: 'Failed to create plan' });
+    }
+  });
+
+  app.put("/api/plans/:id", authenticateToken, authorize(['admin']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const plan = await storage.updatePlan(id, updateData);
+      res.json(plan);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to update plan' });
+    }
+  });
+
+  // Analytics routes
+  app.get("/api/analytics/overview", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { period, project } = req.query;
+      const overview = await storage.getAnalyticsOverview({
+        period: period as string,
+        project: project as string,
+      });
+      res.json(overview);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch analytics overview' });
+    }
+  });
+
+  app.get("/api/analytics/revenue-trend", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { period } = req.query;
+      const trend = await storage.getRevenueTrend(period as string);
+      res.json(trend);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch revenue trend' });
+    }
+  });
+
+  app.get("/api/analytics/managers-performance", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { project } = req.query;
+      const performance = await storage.getManagersPerformance(project as string);
+      res.json(performance);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch managers performance' });
+    }
+  });
+
+  app.get("/api/analytics/projects-comparison", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const comparison = await storage.getProjectsComparison();
+      res.json(comparison);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch projects comparison' });
+    }
+  });
+
+  app.get("/api/analytics/conversion-funnel", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { project } = req.query;
+      const funnel = await storage.getConversionFunnel(project as string);
+      res.json(funnel);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch conversion funnel' });
+    }
+  });
+
+  app.get("/api/analytics/returns-analysis", authenticateToken, authorize(['admin', 'financist']), async (req, res) => {
+    try {
+      const { period } = req.query;
+      const analysis = await storage.getReturnsAnalysis(period as string);
+      res.json(analysis);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch returns analysis' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

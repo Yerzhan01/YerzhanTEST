@@ -53,6 +53,12 @@ export interface IStorage {
   getSalesChartData(filters: any): Promise<any[]>;
   getProjectComparison(): Promise<any[]>;
   getTopManagers(limit: number): Promise<any[]>;
+  getAnalyticsOverview(filters: any): Promise<any>;
+  getRevenueTrend(period: string): Promise<any[]>;
+  getManagersPerformance(project?: string): Promise<any[]>;
+  getProjectsComparison(): Promise<any[]>;
+  getConversionFunnel(project?: string): Promise<any>;
+  getReturnsAnalysis(period: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -287,6 +293,188 @@ export class DatabaseStorage implements IStorage {
       dealCount: result.dealCount,
       planCompletion: 0 // TODO: Calculate from plans
     }));
+  }
+
+  // New analytics methods
+  async getAnalyticsOverview(filters: any): Promise<any> {
+    const { period, project } = filters;
+    
+    // Calculate date range based on period
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (period) {
+      case 'week':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case 'month':
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case 'quarter':
+        startDate.setMonth(now.getMonth() - 3);
+        break;
+      case 'year':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      default:
+        startDate.setMonth(now.getMonth() - 1);
+    }
+
+    const baseConditions = [
+      gte(deals.createdAt, startDate),
+      lte(deals.createdAt, now)
+    ];
+
+    if (project && project !== 'all') {
+      baseConditions.push(eq(deals.project, project));
+    }
+
+    const [overview] = await db
+      .select({
+        totalRevenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+        activeDeals: sql<number>`COUNT(CASE WHEN ${deals.status} IN ('new', 'in_progress', 'prepayment', 'partial') THEN 1 END)`,
+        completedDeals: sql<number>`COUNT(CASE WHEN ${deals.status} = 'completed' THEN 1 END)`,
+        totalDeals: sql<number>`COUNT(${deals.id})`,
+      })
+      .from(deals)
+      .where(and(...baseConditions));
+
+    // Calculate conversion rate
+    const conversionRate = overview.totalDeals > 0 
+      ? (overview.completedDeals / overview.totalDeals) * 100 
+      : 0;
+
+    return {
+      totalRevenue: overview.totalRevenue,
+      activeDeals: overview.activeDeals,
+      conversionRate,
+      planCompletion: 85.5, // Mock data for now
+      revenueGrowth: 12.3, // Mock growth percentage
+    };
+  }
+
+  async getRevenueTrend(period: string): Promise<any[]> {
+    // Generate trend data based on actual database
+    const data = [];
+    const now = new Date();
+    const periods = period === 'week' ? 7 : period === 'month' ? 30 : 90;
+    
+    for (let i = periods; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const [result] = await db
+        .select({
+          revenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+        })
+        .from(deals)
+        .where(and(
+          gte(deals.createdAt, startOfDay),
+          lte(deals.createdAt, endOfDay),
+          eq(deals.status, 'completed')
+        ));
+      
+      data.push({
+        period: date.toISOString().split('T')[0],
+        revenue: result.revenue || 0,
+      });
+    }
+    
+    return data;
+  }
+
+  async getManagersPerformance(project?: string): Promise<any[]> {
+    const conditions = [eq(users.role, 'manager'), eq(users.isActive, true)];
+    
+    if (project && project !== 'all') {
+      conditions.push(eq(users.project, project));
+    }
+
+    const managers = await db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        project: users.project,
+        revenue: sql<number>`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`,
+        dealsCount: sql<number>`COUNT(${deals.id})`,
+        conversionRate: sql<number>`CASE WHEN COUNT(${deals.id}) > 0 THEN (COUNT(CASE WHEN ${deals.status} = 'completed' THEN 1 END) * 100.0 / COUNT(${deals.id})) ELSE 0 END`,
+      })
+      .from(users)
+      .leftJoin(deals, eq(users.id, deals.managerId))
+      .where(and(...conditions))
+      .groupBy(users.id, users.fullName, users.project)
+      .orderBy(desc(sql`COALESCE(SUM(CAST(${deals.amount} AS DECIMAL)), 0)`));
+
+    return managers.map(manager => ({
+      ...manager,
+      planCompletion: Math.floor(Math.random() * 30) + 70, // Mock data
+    }));
+  }
+
+  async getProjectsComparison(): Promise<any[]> {
+    return this.getProjectComparison();
+  }
+
+  async getConversionFunnel(project?: string): Promise<any> {
+    const conditions = [];
+    
+    if (project && project !== 'all') {
+      conditions.push(eq(deals.project, project));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const [funnel] = await db
+      .select({
+        leads: sql<number>`COUNT(${deals.id})`,
+        contacts: sql<number>`COUNT(CASE WHEN ${deals.status} IN ('in_progress', 'prepayment', 'partial', 'completed') THEN 1 END)`,
+        negotiations: sql<number>`COUNT(CASE WHEN ${deals.status} IN ('prepayment', 'partial', 'completed') THEN 1 END)`,
+        completed: sql<number>`COUNT(CASE WHEN ${deals.status} = 'completed' THEN 1 END)`,
+      })
+      .from(deals)
+      .where(whereClause);
+
+    return funnel;
+  }
+
+  async getReturnsAnalysis(period: string): Promise<any[]> {
+    const data = [];
+    const now = new Date();
+    const periods = period === 'week' ? 7 : period === 'month' ? 30 : 90;
+    
+    for (let i = periods; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const [result] = await db
+        .select({
+          amount: sql<number>`COALESCE(SUM(CAST(${returns.returnAmount} AS DECIMAL)), 0)`,
+          count: sql<number>`COUNT(${returns.id})`,
+        })
+        .from(returns)
+        .where(and(
+          gte(returns.returnDate, startOfDay),
+          lte(returns.returnDate, endOfDay)
+        ));
+      
+      data.push({
+        period: date.toISOString().split('T')[0],
+        amount: result.amount || 0,
+        count: result.count || 0,
+      });
+    }
+    
+    return data;
   }
 }
 
