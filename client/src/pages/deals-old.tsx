@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Header } from '@/components/ui/layout/header';
 import { DealsTable } from '@/components/dashboard/deals-table';
 import { DealForm } from '@/components/deals/deal-form';
-import { PaymentDialog } from '@/components/deals/payment-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function Deals() {
   const { t } = useTranslation();
@@ -15,33 +14,8 @@ export default function Deals() {
   const queryClient = useQueryClient();
   const [isDealFormOpen, setIsDealFormOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<any>(null);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [paymentDeal, setPaymentDeal] = useState<any>(null);
 
-  const handleEditDeal = async (dealId: string) => {
-    try {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`/api/deals/${dealId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const dealData = await response.json();
-        setEditingDeal(dealData);
-        setIsDealFormOpen(true);
-      }
-    } catch (error) {
-      console.error('Failed to fetch deal:', error);
-      toast({
-        title: 'Ошибка',
-        description: 'Не удалось загрузить сделку',
-        variant: 'destructive',
-      });
-    }
-  };
-
+  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (dealId: string) => {
       return apiRequest('DELETE', `/api/deals/${dealId}`);
@@ -62,9 +36,22 @@ export default function Deals() {
     },
   });
 
-  const handleDeleteDeal = (dealId: string) => {
-    if (confirm('Вы уверены, что хотите удалить эту сделку?')) {
-      deleteMutation.mutate(dealId);
+  const handleEditDeal = async (dealId: string) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`/api/deals/${dealId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const dealData = await response.json();
+        setEditingDeal(dealData);
+        setIsDealFormOpen(true);
+      }
+    } catch (error) {
+      console.error('Failed to fetch deal:', error);
     }
   };
 
@@ -73,14 +60,10 @@ export default function Deals() {
     setEditingDeal(null);
   };
 
-  const handleAddPayment = (deal: any) => {
-    setPaymentDeal(deal);
-    setPaymentDialogOpen(true);
-  };
-
-  const handleClosePaymentDialog = () => {
-    setPaymentDialogOpen(false);
-    setPaymentDeal(null);
+  const handleDeleteDeal = async (dealId: string) => {
+    if (confirm('Вы уверены, что хотите удалить эту сделку?')) {
+      deleteMutation.mutate(dealId);
+    }
   };
 
   return (
@@ -95,21 +78,14 @@ export default function Deals() {
           onAddDeal={() => setIsDealFormOpen(true)}
           onEditDeal={handleEditDeal}
           onDeleteDeal={handleDeleteDeal}
-          onAddPayment={handleAddPayment}
         />
-
-      <PaymentDialog
-        isOpen={paymentDialogOpen}
-        onClose={handleClosePaymentDialog}
-        deal={paymentDeal}
-      />
       </main>
 
       <Dialog open={isDealFormOpen} onOpenChange={setIsDealFormOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingDeal ? 'Редактировать сделку' : 'Создать новую сделку'}
+              {editingDeal ? 'Редактировать сделку' : 'Создать сделку'}
             </DialogTitle>
           </DialogHeader>
           <DealForm

@@ -44,7 +44,7 @@ export default function Planning() {
   const [plannedDeals, setPlannedDeals] = useState('');
 
   // Check if user has access to planning
-  const hasAccess = user?.role === 'admin';
+  const hasAccess = user?.role === 'admin' || user?.role === 'manager';
 
   if (!hasAccess) {
     return (
@@ -103,7 +103,10 @@ export default function Planning() {
 
   // Create plan mutation
   const createPlanMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/plans', 'POST', data),
+    mutationFn: async (data: any) => {
+      const response = await apiRequest('POST', '/api/plans', data);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['plans'] });
       setNewPlanOpen(false);

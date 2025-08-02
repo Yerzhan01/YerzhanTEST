@@ -276,6 +276,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/deals/:id", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
     try {
       const { id } = req.params;
+      const dealData = req.body;
+      
+      // Check if deal exists
+      const existingDeal = await storage.getDeal(id);
+      if (!existingDeal) {
+        return res.status(404).json({ message: 'Deal not found' });
+      }
+      
+      // Managers can only edit their own deals
+      if (req.user && req.user.role === 'manager' && existingDeal.managerId !== req.user.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const updatedDeal = await storage.updateDeal(id, dealData);
+      res.json(updatedDeal);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to update deal' });
+    }
+  });
+
+  app.delete("/api/deals/:id", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Check if deal exists
+      const existingDeal = await storage.getDeal(id);
+      if (!existingDeal) {
+        return res.status(404).json({ message: 'Deal not found' });
+      }
+      
+      // Managers can only delete their own deals
+      if (req.user && req.user.role === 'manager' && existingDeal.managerId !== req.user.id) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      await storage.deleteDeal(id);
+      res.json({ message: 'Deal deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to delete deal' });
+    }
+  });
+
+  app.put("/api/deals/:id", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
+    try {
+      const { id } = req.params;
       const deal = await storage.getDeal(id);
       
       if (!deal) {
@@ -331,9 +376,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/returns", authenticateToken, authorize(['admin']), async (req, res) => {
+  app.post("/api/returns", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
     try {
       const returnData = insertReturnSchema.parse(req.body);
+      
+      // Managers can only create returns for their own deals
+      if (req.user && req.user.role === 'manager') {
+        const deal = await storage.getDeal(returnData.dealId);
+        if (!deal || deal.managerId !== req.user.id) {
+          return res.status(403).json({ message: 'Access denied' });
+        }
+      }
+      
       const newReturn = await storage.createReturn(returnData);
       res.status(201).json(newReturn);
     } catch (error) {
@@ -378,9 +432,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/plans", authenticateToken, authorize(['admin']), async (req, res) => {
+  app.post("/api/plans", authenticateToken, authorize(['admin', 'manager']), async (req, res) => {
     try {
       const planData = insertPlanSchema.parse(req.body);
+      
+      // Managers can only create plans for themselves
+      if (req.user && req.user.role === 'manager') {
+        planData.managerId = req.user.id;
+      }
+      
       const plan = await storage.createPlan(planData);
       res.status(201).json(plan);
     } catch (error) {

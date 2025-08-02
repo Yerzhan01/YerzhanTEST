@@ -16,16 +16,18 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SkeletonTable } from '@/components/ui/skeleton-table';
-import { Search, Plus, Edit, Trash, RefreshCw } from 'lucide-react';
+import { Search, Plus, Edit, Trash, RefreshCw, CreditCard } from 'lucide-react';
 import { SiAmazon, SiShopify } from 'react-icons/si';
 
 interface DealsTableProps {
   onAddDeal?: () => void;
   onEditDeal?: (dealId: string) => void;
+  onDeleteDeal?: (dealId: string) => void;
+  onAddPayment?: (deal: any) => void;
   limit?: number;
 }
 
-export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProps) {
+export function DealsTable({ onAddDeal, onEditDeal, onDeleteDeal, onAddPayment, limit = 10 }: DealsTableProps) {
   const { t } = useTranslation();
   const [searchInput, setSearchInput] = useState('');
   const [searchBy, setSearchBy] = useState('client');
@@ -208,18 +210,36 @@ export function DealsTable({ onAddDeal, onEditDeal, limit = 10 }: DealsTableProp
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
+                      {onAddPayment && Number(deal.remainingAmount) > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onAddPayment(deal)}
+                          title="Добавить доплату"
+                        >
+                          <CreditCard className="h-4 w-4" />
+                        </Button>
+                      )}
                       {onEditDeal && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => onEditDeal(deal.id)}
+                          title="Редактировать"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm">
-                        <Trash className="h-4 w-4" />
-                      </Button>
+                      {onDeleteDeal && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => onDeleteDeal(deal.id)}
+                          title="Удалить"
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
