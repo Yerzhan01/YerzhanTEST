@@ -1,0 +1,6 @@
+# Скопируй в .dev.vars (без .example) для локальной разработки `wrangler dev`.
+# В проде используй: wrangler secret put TELEGRAM_BOT_TOKEN  (и т.д.)
+TELEGRAM_BOT_TOKEN=
+KIE_API_KEY=
+TELEGRAM_WEBHOOK_SECRET=
+KIE_CALLBACK_SECRET=

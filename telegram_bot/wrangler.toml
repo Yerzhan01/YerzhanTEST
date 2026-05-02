@@ -1,0 +1,19 @@
+name = "telegram-kie-bot"
+main = "src/index.ts"
+compatibility_date = "2024-10-01"
+
+# После `wrangler kv:namespace create TASKS` подставь сюда полученный id.
+[[kv_namespaces]]
+binding = "TASKS"
+id = "REPLACE_WITH_KV_ID"
+
+# Публичный URL воркера (узнаешь после первого деплоя). Используется для
+# kie.ai callBackUrl, чтобы они вернули результат генерации обратно нам.
+[vars]
+WORKER_URL = "https://telegram-kie-bot.YOURNAME.workers.dev"
+
+# Секреты задаются отдельно через `wrangler secret put`:
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#   wrangler secret put KIE_API_KEY
+#   (опционально) wrangler secret put TELEGRAM_WEBHOOK_SECRET
+#   (опционально) wrangler secret put KIE_CALLBACK_SECRET
