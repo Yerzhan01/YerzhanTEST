@@ -1,4 +1,5 @@
 import type { ModelKey, MediaType } from "./config";
+import type { ModelFamily } from "./kie";
 
 export type Step =
   | "model"
@@ -21,6 +22,7 @@ export interface TaskRecord {
   chatId: number;
   userId: number;
   type: MediaType;
+  family: ModelFamily;
   model: ModelKey;
   version: string;
   prompt: string;

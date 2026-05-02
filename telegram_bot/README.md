@@ -221,34 +221,63 @@ wrangler tail
 
 ---
 
+## 🎛 Доступные модели
+
+| Модель | Версия | id у kie.ai | Что выбирается |
+|---|---|---|---|
+| 🍌 Nano Banana | Nano Banana | `google/nano-banana` | формат |
+| 🍌 Nano Banana | Nano Banana Pro | `nano-banana-pro` | формат |
+| 🍌 Nano Banana | Nano Banana 2 (4K) | `nano-banana-2` | формат |
+| 🎨 GPT-4o Image | GPT-4o Image | `gpt4o-image` | формат |
+| 🎬 Veo 3 | Fast / Quality | `veo3_fast` / `veo3` | формат |
+| 🐉 Kling | 2.6 / 3.0 | `kling-2.6/text-to-video` / `kling-3.0/video` | формат, mode (std/pro), длительность 5/10с |
+
+---
+
 ## 💵 Цены (ориентировочные)
 
 > Реальные тарифы смотри на [kie.ai/pricing](https://kie.ai/pricing) — здесь
 > заглушки в `config.ts`, обновляй при изменениях.
 
 - **Nano Banana** — ~$0.020 / картинка
-- **GPT Image 1 / 2** — $0.025 – $0.10 / картинка (зависит от качества)
-- **Veo 3 Fast** — ~$0.40 / видео 8с (×1.5 для 1080p)
+- **Nano Banana Pro** — ~$0.080 / картинка
+- **Nano Banana 2 (4K)** — ~$0.040 / картинка
+- **GPT-4o Image** — ~$0.030 / картинка
+- **Veo 3 Fast** — ~$0.40 / видео 8с
 - **Veo 3 Quality** — ~$2.00 / видео 8с
-- **Kling v1.6 Standard** — ~$0.14 / 5с
-- **Kling v2.1 Standard / Pro / Master** — $0.28 / $0.56 / $1.40 за 5с
-- **Kling v3 Master** — ~$1.80 / 5с
+- **Kling 2.6** — ~$0.18 (std) / $0.36 (pro) за 5с
+- **Kling 3.0** — ~$0.30 (std) / $0.60 (pro) за 5с
 
 ---
 
 ## ⚠️ Заметки про API kie.ai
 
-Бот шлёт всё через универсальный `POST /api/v1/jobs/createTask` с
-`{ model, input: { prompt, aspect_ratio, quality, duration }, callBackUrl }`.
+У kie.ai **нет одного универсального эндпоинта** на все модели — есть три
+семейства, и бот выбирает правильное автоматически по полю `family` в
+`config.ts` (см. адаптеры в `src/kie.ts`):
 
-Если для какой-то модели kie.ai требует другую схему параметров —
-поправь `buildInput()` в `src/kie.ts` (например, добавь специфичные поля
-для Kling или другие имена параметров).
+| Семейство | Создание | Статус | Используют |
+|---|---|---|---|
+| `jobs` | `POST /api/v1/jobs/createTask` | `GET /api/v1/jobs/recordInfo` | Nano Banana, Kling |
+| `veo` | `POST /api/v1/veo/generate` | `GET /api/v1/veo/record-info` | Veo 3 |
+| `gpt4o-image` | `POST /api/v1/gpt4o-image/generate` | `GET /api/v1/gpt4o-image/record-info` | GPT-4o Image |
 
-После генерации kie.ai вызывает `POST WORKER_URL/kie-callback`. Из ответа
-извлекается URL медиа (`extractMediaUrl` в `src/kie.ts` пробует кучу
-вариантов: `resultUrls`, `videoUrl`, `imageUrl`, и т.п.). Если у тебя URL
-не находится — добавь свой ключ в `priorityKeys` там же.
+Особенности схем (тоже учтены в адаптерах):
+
+- **gpt4o-image** использует поле `size` вместо `aspect_ratio`, и в ответе
+  `data.status` (UPPER) с URL'ами в `data.response.resultUrls`.
+- **kling** ожидает `duration` строкой (`"5"`/`"10"`) и поле `mode`
+  (`"std"`/`"pro"`), а не `quality`.
+- **veo** — поля плоские, не во вложенном `input: {}`.
+- **jobs**-семейство в статусе возвращает `data.resultJson` как JSON-строку,
+  её нужно парсить.
+
+После генерации kie.ai вызывает `POST WORKER_URL/kie-callback`. Worker
+дополнительно дёргает `getStatus()` чтобы достать URL результата —
+callback-payload часто без него.
+
+Если добавляешь новую модель / семейство — продли `adapters` в `src/kie.ts`
+и пропиши `family` в `src/config.ts`.
 
 ---
 

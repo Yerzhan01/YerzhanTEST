@@ -1,22 +1,38 @@
 /**
- * Конфиг моделей kie.ai.
- * Цены ориентировочные — сверяй на https://kie.ai/pricing
- * `kieModel` — это идентификатор модели для эндпоинта /api/v1/jobs/createTask.
+ * Конфиг моделей kie.ai. Сверено с https://docs.kie.ai/ (декабрь 2024).
+ * Цены ориентировочные — итоговое списание см. в дашборде kie.ai.
+ *
+ * `family` определяет, какой эндпоинт и схему запроса использовать
+ * (см. адаптеры в src/kie.ts).
+ *   - "jobs"        → /api/v1/jobs/createTask           (Nano Banana, Kling)
+ *   - "veo"         → /api/v1/veo/generate              (Veo 3)
+ *   - "gpt4o-image" → /api/v1/gpt4o-image/generate      (GPT-4o Image)
+ *
+ * `kieModel` — то значение, которое уходит в запрос:
+ *   - для "jobs"   — поле `model` в теле
+ *   - для "veo"    — поле `model` в теле ("veo3" / "veo3_fast")
+ *   - для "gpt4o-image" — служебное (эндпоинт сам по себе модель-специфичен)
  */
 
+import type { ModelFamily } from "./kie";
+
 export type ModelKey = "nano_banana" | "gpt_image" | "veo3" | "kling";
-export type MediaType = "image" | "image-edit" | "video";
+export type MediaType = "image" | "video";
 
 export interface VersionConfig {
   label: string;
+  family: ModelFamily;
   kieModel: string;
   type: MediaType;
+  /** Цена за 1 единицу (картинку или видео фиксированной длины). */
   priceUsd?: number;
+  /** Цена за 5 секунд видео (для моделей, биллящих по длительности). */
   pricePer5sUsd?: number;
 }
 
 export interface QualityConfig {
   label: string;
+  /** Множитель к базовой цене. */
   multiplier: number;
 }
 
@@ -30,27 +46,33 @@ export interface ModelConfig {
 }
 
 export const MODELS: Record<ModelKey, ModelConfig> = {
+  // =====================================================================
+  // 🍌 Nano Banana — Google Gemini Image (через jobs API)
+  // =====================================================================
   nano_banana: {
     title: "🍌 Nano Banana (Google)",
-    description: "Быстрая генерация и редактирование изображений",
+    description: "Текст → картинка, разные поколения Gemini Image",
     versions: {
       "nano-banana": {
-        label: "Nano Banana (text → image)",
+        label: "Nano Banana (Gemini 2.5 Flash)",
+        family: "jobs",
         kieModel: "google/nano-banana",
         type: "image",
         priceUsd: 0.020,
       },
-      "nano-banana-edit": {
-        label: "Nano Banana Edit (image → image)",
-        kieModel: "google/nano-banana-edit",
-        type: "image-edit",
-        priceUsd: 0.020,
+      "nano-banana-pro": {
+        label: "Nano Banana Pro (Gemini 3 Pro)",
+        family: "jobs",
+        kieModel: "nano-banana-pro",
+        type: "image",
+        priceUsd: 0.080,
       },
-      "nano-banana-upscale": {
-        label: "Nano Banana Upscale",
-        kieModel: "google/nano-banana-upscale",
-        type: "image-edit",
-        priceUsd: 0.030,
+      "nano-banana-2": {
+        label: "Nano Banana 2 (Gemini 3.1 Flash, 4K)",
+        family: "jobs",
+        kieModel: "nano-banana-2",
+        type: "image",
+        priceUsd: 0.040,
       },
     },
     formats: ["1:1", "3:4", "4:3", "9:16", "16:9"],
@@ -58,94 +80,84 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     durations: null,
   },
 
+  // =====================================================================
+  // 🎨 GPT Image — OpenAI gpt-4o image (выделенный эндпоинт)
+  // =====================================================================
   gpt_image: {
-    title: "🎨 GPT Image (OpenAI)",
+    title: "🎨 GPT-4o Image (OpenAI)",
     description: "Качественная генерация в стиле GPT-4o",
     versions: {
-      "gpt-image-1": {
-        label: "GPT Image 1",
+      "gpt4o-image": {
+        label: "GPT-4o Image",
+        family: "gpt4o-image",
         kieModel: "gpt4o-image",
         type: "image",
-        priceUsd: 0.025,
-      },
-      "gpt-image-2": {
-        label: "GPT Image 2",
-        kieModel: "gpt-image-2",
-        type: "image",
-        priceUsd: 0.040,
+        priceUsd: 0.030,
       },
     },
+    // У gpt4o-image параметр называется `size`, но значения те же три:
     formats: ["1:1", "3:2", "2:3"],
-    qualities: {
-      low: { label: "Low", multiplier: 1.0 },
-      medium: { label: "Medium", multiplier: 1.6 },
-      high: { label: "High (HD)", multiplier: 2.5 },
-    },
+    qualities: null,
     durations: null,
   },
 
+  // =====================================================================
+  // 🎬 Veo 3 — Google Video (выделенный эндпоинт)
+  // =====================================================================
   veo3: {
     title: "🎬 Veo 3 (Google Video)",
-    description: "Видео из текста или картинки (8 сек)",
+    description: "Видео из текста, ~8 сек со звуком",
     versions: {
       "veo3-fast": {
         label: "Veo 3 Fast",
+        family: "veo",
         kieModel: "veo3_fast",
         type: "video",
         priceUsd: 0.40,
       },
       "veo3-quality": {
         label: "Veo 3 Quality",
+        family: "veo",
         kieModel: "veo3",
         type: "video",
         priceUsd: 2.00,
       },
     },
     formats: ["16:9", "9:16"],
-    qualities: {
-      "720p": { label: "720p", multiplier: 1.0 },
-      "1080p": { label: "1080p", multiplier: 1.5 },
-    },
-    durations: [8],
+    qualities: null, // на kie.ai разрешение не выбирается отдельно — фиксировано на 1080p
+    durations: null, // длительность также фиксированная (~8с)
   },
 
+  // =====================================================================
+  // 🐉 Kling — видео (через jobs API)
+  // =====================================================================
   kling: {
     title: "🐉 Kling Video",
-    description: "Видео из текста или картинки",
+    description: "Видео из текста; std/pro = разрешение",
     versions: {
-      "kling-v1.6-std": {
-        label: "Kling v1.6 Standard",
-        kieModel: "kling-v1.6-standard",
+      "kling-2.6": {
+        label: "Kling 2.6 (text → video)",
+        family: "jobs",
+        kieModel: "kling-2.6/text-to-video",
         type: "video",
-        pricePer5sUsd: 0.14,
+        // 2.6 std ~$0.18/5s, pro ~$0.35/5s. Берём среднюю как базу;
+        // итог корректируется множителем качества (см. qualities).
+        pricePer5sUsd: 0.18,
       },
-      "kling-v2.1-std": {
-        label: "Kling v2.1 Standard",
-        kieModel: "kling-v2.1-standard",
+      "kling-3.0": {
+        label: "Kling 3.0 (text → video)",
+        family: "jobs",
+        kieModel: "kling-3.0/video",
         type: "video",
-        pricePer5sUsd: 0.28,
-      },
-      "kling-v2.1-pro": {
-        label: "Kling v2.1 Pro",
-        kieModel: "kling-v2.1-pro",
-        type: "video",
-        pricePer5sUsd: 0.56,
-      },
-      "kling-v2.1-master": {
-        label: "Kling v2.1 Master",
-        kieModel: "kling-v2.1-master",
-        type: "video",
-        pricePer5sUsd: 1.40,
-      },
-      "kling-v3-master": {
-        label: "Kling v3 Master",
-        kieModel: "kling-v3-master",
-        type: "video",
-        pricePer5sUsd: 1.80,
+        pricePer5sUsd: 0.30,
       },
     },
     formats: ["16:9", "9:16", "1:1"],
-    qualities: null,
+    qualities: {
+      // У Kling это поле "mode" в API: std (720p) / pro (1080p).
+      std: { label: "Standard (720p)", multiplier: 1.0 },
+      pro: { label: "Pro (1080p)", multiplier: 2.0 },
+    },
     durations: [5, 10],
   },
 };

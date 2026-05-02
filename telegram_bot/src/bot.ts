@@ -343,6 +343,7 @@ function installPromptHandler(bot: Bot, env: Env): void {
     try {
       const created = await createTask({
         apiKey: env.KIE_API_KEY,
+        family: version.family,
         kieModel: version.kieModel,
         prompt,
         aspectRatio: session.format,
@@ -361,6 +362,7 @@ function installPromptHandler(bot: Bot, env: Env): void {
       chatId: ctx.chat.id,
       userId: ctx.from.id,
       type: version.type,
+      family: version.family,
       model: session.model,
       version: session.version,
       prompt,

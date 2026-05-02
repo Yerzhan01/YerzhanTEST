@@ -4,11 +4,11 @@
  */
 
 import {
-  type RecordInfoData,
-  extractMediaUrl,
-  getRecordInfo,
+  getStatus,
+  isSuccess,
   isTerminalState,
   KieError,
+  type NormalizedStatus,
 } from "./kie";
 import {
   deleteTask,
@@ -35,62 +35,49 @@ export interface DeliveryResult {
 
 /**
  * Пытается выдать результат задачи в Telegram.
- * @param extraPayload — необязательный payload от kie.ai callback (может содержать готовый URL).
+ * extraPayload игнорируется — мы всегда переспрашиваем kie.ai (`getStatus`),
+ * потому что callback-payload часто без URL результата.
  */
 export async function tryDeliverTask(
   taskId: string,
   env: DeliveryEnv,
-  extraPayload?: unknown,
+  _extraPayload?: unknown,
 ): Promise<DeliveryResult> {
   const record = await getTask(env.TASKS, taskId);
   if (!record) return { status: "missing" };
 
-  let info: RecordInfoData | undefined;
+  let info: NormalizedStatus;
   try {
-    info = await getRecordInfo(taskId, env.KIE_API_KEY);
+    info = await getStatus(record.family, taskId, env.KIE_API_KEY);
   } catch (e) {
     const msg = e instanceof KieError ? e.message : String(e);
-    console.error(`recordInfo failed for ${taskId}:`, msg);
-    // Если callback пришёл, попробуем его payload — recordInfo может ещё не подтянуть.
-    if (!extraPayload) return { status: "still-running", error: msg };
+    console.error(`getStatus failed for ${taskId}:`, msg);
+    return { status: "still-running", error: msg };
   }
 
-  const state = info?.state;
-  if (state && !isTerminalState(state)) {
-    return { status: "still-running", state };
+  if (!isTerminalState(info.state)) {
+    return { status: "still-running", state: info.state };
   }
 
-  if (state === "fail") {
-    const reason = info?.failMsg || `code ${info?.failCode ?? "?"}`;
+  if (!isSuccess(info.state)) {
+    const reason = info.failMsg || "kie.ai вернул state=fail";
     await sendText(
       env.TELEGRAM_BOT_TOKEN,
       record.chatId,
       `❌ Задача провалилась.\nID: ${taskId}\nПричина: ${reason}`,
     );
     await deleteTask(env.TASKS, taskId);
-    return { status: "failed", state, error: reason };
+    return { status: "failed", state: info.state, error: reason };
   }
 
-  // Состояние "success" (или мы получили callback без state, но с payload).
-  const sources = collectSources(info, extraPayload);
-  let mediaUrl: string | null = null;
-  for (const src of sources) {
-    mediaUrl = extractMediaUrl(src);
-    if (mediaUrl) break;
-  }
-
-  if (!mediaUrl) {
-    if (state === "success") {
-      await sendText(
-        env.TELEGRAM_BOT_TOKEN,
-        record.chatId,
-        `⚠️ Задача завершена, но URL медиа не нашёлся в ответе kie.ai.\nID: ${taskId}`,
-      );
-      await deleteTask(env.TASKS, taskId);
-      return { status: "failed", state, error: "no media url in response" };
-    }
-    // ещё не дозрело
-    return { status: "still-running", state };
+  if (info.resultUrls.length === 0) {
+    await sendText(
+      env.TELEGRAM_BOT_TOKEN,
+      record.chatId,
+      `⚠️ Задача завершена, но URL медиа не нашёлся в ответе kie.ai.\nID: ${taskId}`,
+    );
+    await deleteTask(env.TASKS, taskId);
+    return { status: "failed", state: info.state, error: "no media url in response" };
   }
 
   // Повторная проверка перед отправкой — защита от двойной доставки
@@ -100,32 +87,32 @@ export async function tryDeliverTask(
 
   const caption = buildCaption(record);
   try {
-    if (record.type === "video") {
-      await sendVideo(env.TELEGRAM_BOT_TOKEN, record.chatId, mediaUrl, caption);
-    } else {
-      await sendPhoto(env.TELEGRAM_BOT_TOKEN, record.chatId, mediaUrl, caption);
-    }
+    await sendAllMedia(env.TELEGRAM_BOT_TOKEN, record, info.resultUrls, caption);
   } catch (e) {
     console.error(`telegram send failed for ${taskId}:`, e);
-    await sendText(
-      env.TELEGRAM_BOT_TOKEN,
-      record.chatId,
-      truncate(`✅ Готово, но не удалось вложить в чат напрямую.\nСсылка: ${mediaUrl}\n\n${caption}`, TG_TEXT_LIMIT),
-    );
+    const fallback = `✅ Готово, но не удалось вложить в чат напрямую.\n${info.resultUrls.join("\n")}\n\n${caption}`;
+    await sendText(env.TELEGRAM_BOT_TOKEN, record.chatId, truncate(fallback, TG_TEXT_LIMIT));
   }
 
   await deleteTask(env.TASKS, taskId);
-  return { status: "delivered", state: "success" };
+  return { status: "delivered", state: info.state };
 }
 
-function collectSources(info: RecordInfoData | undefined, extraPayload: unknown): unknown[] {
-  const sources: unknown[] = [];
-  if (info?.resultJson) {
-    try { sources.push(JSON.parse(info.resultJson)); } catch { /* ignore */ }
+async function sendAllMedia(
+  token: string,
+  record: TaskRecord,
+  urls: string[],
+  caption: string,
+): Promise<void> {
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    const cap = i === 0 ? caption : "";
+    if (record.type === "video") {
+      await sendVideo(token, record.chatId, url, cap);
+    } else {
+      await sendPhoto(token, record.chatId, url, cap);
+    }
   }
-  if (info) sources.push(info);
-  if (extraPayload) sources.push(extraPayload);
-  return sources;
 }
 
 function buildCaption(record: TaskRecord): string {
