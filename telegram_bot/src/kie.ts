@@ -13,12 +13,14 @@
  * Все запросы: Authorization: Bearer <KIE_API_KEY>.
  *
  * ВАЖНЫЕ нюансы (учтены в адаптерах):
- *   - Veo body использует CAMEL-CASE: aspectRatio, imageUrls, callBackUrl, enableFallback.
+ *   - Veo body — поля плоские; aspect_ratio в SNAKE_CASE (по докам), а
+ *     imageUrls / callBackUrl / enableFallback / enableTranslation в camelCase.
  *   - Nano Banana требует input.image_input (пустой массив [] для text-to-image).
  *   - Kling: duration — СТРОКА ("5"/"10"), mode = "std"|"pro" вместо quality.
  *   - GPT Image 2: model "gpt-image-2-text-to-image" / "gpt-image-2-image-to-image",
  *                  параметр aspect_ratio (snake), опц. resolution "1K"|"2K"|"4K".
  *   - Status response (jobs+veo одинаково): data.state lowercase, data.resultJson — JSON-строка.
+ *   - Veo callback дополнительно кладёт data.resultUrls / data.originUrls напрямую.
  */
 
 const KIE_BASE = "https://api.kie.ai";
@@ -131,14 +133,15 @@ const adapters: Record<ModelFamily, Adapter> = {
     createPath: "/api/v1/veo/generate",
     statusPath: "/api/v1/veo/record-info",
     buildBody(p) {
-      // У Veo3 поля плоские (НЕ во вложенном input) и в camelCase.
+      // По docs.kie.ai/veo3-api/generate-veo-3-video поля плоские (без `input`),
+      // и кроме aspect_ratio (snake_case) всё остальное — camelCase.
       const body: Record<string, unknown> = {
         prompt: p.prompt,
         model: p.kieModel, // "veo3" | "veo3_fast"
         enableFallback: false,
         enableTranslation: true,
       };
-      if (p.aspectRatio) body.aspectRatio = p.aspectRatio; // CAMEL!
+      if (p.aspectRatio) body.aspect_ratio = p.aspectRatio; // SNAKE по докам
       if (p.imageUrl) body.imageUrls = [p.imageUrl];
       if (p.callBackUrl) body.callBackUrl = p.callBackUrl;
       return body;
