@@ -1,26 +1,29 @@
 /**
- * Клиент kie.ai. У kie.ai НЕТ единого универсального эндпоинта для всех моделей —
- * есть три семейства, у каждого своя пара (createPath, statusPath) и своя схема:
+ * Клиент kie.ai. Сверено с актуальным SDK @felores/kie-ai-mcp-server@3.2.1
+ * (декабрь 2024) и docs.kie.ai. У kie.ai два эндпоинт-семейства:
  *
- *   1) "jobs"          — Nano Banana, Kling и прочие "market"-модели
- *      POST /api/v1/jobs/createTask   { model, callBackUrl, input: {...} }
- *      GET  /api/v1/jobs/recordInfo?taskId=  → data.state + data.resultJson (string!)
+ *   "jobs" — POST /api/v1/jobs/createTask           { model, input: {...}, callBackUrl }
+ *            GET  /api/v1/jobs/recordInfo?taskId=
+ *            используется: Nano Banana, Kling, GPT Image 2, и большинство market-моделей
  *
- *   2) "veo"           — Veo 3 / Veo 3 Fast
- *      POST /api/v1/veo/generate      { prompt, model, aspect_ratio, ... }
- *      GET  /api/v1/veo/record-info?taskId=
- *
- *   3) "gpt4o-image"   — gpt4o-image
- *      POST /api/v1/gpt4o-image/generate   { prompt, size, nVariants, ... }
- *      GET  /api/v1/gpt4o-image/record-info?taskId=  → data.status + data.response.resultUrls
+ *   "veo"  — POST /api/v1/veo/generate              { prompt, model, aspectRatio, ... }   ← плоское!
+ *            GET  /api/v1/veo/record-info?taskId=
+ *            используется: Veo 3 / Veo 3 Fast
  *
  * Все запросы: Authorization: Bearer <KIE_API_KEY>.
- * Источник: https://docs.kie.ai/ — разделы market, veo3-api, 4o-image-api.
+ *
+ * ВАЖНЫЕ нюансы (учтены в адаптерах):
+ *   - Veo body использует CAMEL-CASE: aspectRatio, imageUrls, callBackUrl, enableFallback.
+ *   - Nano Banana требует input.image_input (пустой массив [] для text-to-image).
+ *   - Kling: duration — СТРОКА ("5"/"10"), mode = "std"|"pro" вместо quality.
+ *   - GPT Image 2: model "gpt-image-2-text-to-image" / "gpt-image-2-image-to-image",
+ *                  параметр aspect_ratio (snake), опц. resolution "1K"|"2K"|"4K".
+ *   - Status response (jobs+veo одинаково): data.state lowercase, data.resultJson — JSON-строка.
  */
 
 const KIE_BASE = "https://api.kie.ai";
 
-export type ModelFamily = "jobs" | "veo" | "gpt4o-image";
+export type ModelFamily = "jobs" | "veo";
 
 export type TaskState =
   | "waiting"
@@ -33,13 +36,16 @@ export type TaskState =
 export interface CreateTaskParams {
   apiKey: string;
   family: ModelFamily;
-  /** Идентификатор модели для семейства "jobs". Для "veo"/"gpt4o-image" — служебный. */
+  /** Идентификатор модели в kie.ai (значение поля `model` в теле запроса). */
   kieModel: string;
   prompt: string;
+  /** Соотношение сторон, например "16:9". */
   aspectRatio?: string;
-  /** Для veo: "720p"/"1080p"; для kling: "std"/"pro" (мапится в `mode`). */
+  /** Для kling: "std"|"pro" (мапится в `mode`). Для прочих jobs-моделей пробрасывается как `quality`. */
   quality?: string;
+  /** Для kling: число секунд (3-15); адаптер сериализует в строку. */
   duration?: number;
+  /** Опциональная картинка-вход (image-to-video / edit-режимы). */
   imageUrl?: string;
   callBackUrl?: string;
 }
@@ -52,7 +58,7 @@ export interface NormalizedStatus {
 }
 
 export class KieError extends Error {
-  constructor(message: string, public code?: number) {
+  constructor(message: string, public code?: number, public responseBody?: string) {
     super(message);
     this.name = "KieError";
   }
@@ -86,16 +92,26 @@ const adapters: Record<ModelFamily, Adapter> = {
       const input: Record<string, unknown> = { prompt: p.prompt };
 
       if (p.aspectRatio) input.aspect_ratio = p.aspectRatio;
-      if (p.imageUrl) {
-        // image-edit / image-to-video используют image_input (nano-banana) или image_urls (kling)
-        input.image_input = [p.imageUrl];
-        input.image_urls = [p.imageUrl];
+
+      // === Nano Banana: image_input — обязательное поле, даже пустой массив ===
+      if (isNanoBanana(p.kieModel)) {
+        input.image_input = p.imageUrl ? [p.imageUrl] : [];
       }
-      // Kling: duration — строка ("5", "10"); прочие — оставим число.
-      if (p.duration != null) {
-        input.duration = isKling(p.kieModel) ? String(p.duration) : p.duration;
+
+      // === Kling: duration — строка, image_urls для img-to-video ===
+      if (isKling(p.kieModel)) {
+        if (p.duration != null) input.duration = String(p.duration);
+        if (p.imageUrl) input.image_urls = [p.imageUrl];
+      } else if (p.duration != null) {
+        input.duration = p.duration;
       }
-      // Kling: quality "std"|"pro" мапится на mode.
+
+      // === GPT Image 2: input_urls для img-to-img ===
+      if (isGptImage2(p.kieModel) && p.imageUrl) {
+        input.input_urls = [p.imageUrl];
+      }
+
+      // === quality → mode (kling) или просто quality ===
       if (p.quality === "std" || p.quality === "pro") {
         input.mode = p.quality;
       } else if (p.quality) {
@@ -107,22 +123,7 @@ const adapters: Record<ModelFamily, Adapter> = {
       return body;
     },
     parseStatus(data) {
-      const state = String(data?.state ?? "").toLowerCase();
-      let resultUrls: string[] = [];
-      const rj = data?.resultJson;
-      if (typeof rj === "string" && rj.length > 0) {
-        try {
-          const parsed = JSON.parse(rj);
-          resultUrls = collectUrls(parsed);
-        } catch { /* битый JSON */ }
-      }
-      if (resultUrls.length === 0) resultUrls = collectUrls(data);
-      return {
-        taskId: String(data?.taskId ?? ""),
-        state,
-        resultUrls,
-        failMsg: data?.failMsg ?? undefined,
-      };
+      return parseStandardStatus(data);
     },
   },
 
@@ -130,71 +131,44 @@ const adapters: Record<ModelFamily, Adapter> = {
     createPath: "/api/v1/veo/generate",
     statusPath: "/api/v1/veo/record-info",
     buildBody(p) {
-      // У veo поля плоские (не вложены в input).
+      // У Veo3 поля плоские (НЕ во вложенном input) и в camelCase.
       const body: Record<string, unknown> = {
         prompt: p.prompt,
         model: p.kieModel, // "veo3" | "veo3_fast"
         enableFallback: false,
         enableTranslation: true,
       };
-      if (p.aspectRatio) body.aspect_ratio = p.aspectRatio;
+      if (p.aspectRatio) body.aspectRatio = p.aspectRatio; // CAMEL!
       if (p.imageUrl) body.imageUrls = [p.imageUrl];
       if (p.callBackUrl) body.callBackUrl = p.callBackUrl;
       return body;
     },
     parseStatus(data) {
-      const state = String(data?.state ?? data?.status ?? "").toLowerCase();
-      let resultUrls: string[] = [];
-      const rj = data?.resultJson;
-      if (typeof rj === "string" && rj.length > 0) {
-        try { resultUrls = collectUrls(JSON.parse(rj)); } catch { /* skip */ }
-      }
-      if (resultUrls.length === 0) resultUrls = collectUrls(data);
-      return {
-        taskId: String(data?.taskId ?? ""),
-        state,
-        resultUrls,
-        failMsg: data?.failMsg ?? data?.errorMessage ?? undefined,
-      };
-    },
-  },
-
-  "gpt4o-image": {
-    createPath: "/api/v1/gpt4o-image/generate",
-    statusPath: "/api/v1/gpt4o-image/record-info",
-    buildBody(p) {
-      const body: Record<string, unknown> = {
-        prompt: p.prompt,
-        nVariants: 1,
-        isEnhance: false,
-        enableFallback: false,
-      };
-      // gpt4o использует поле `size`, не `aspect_ratio`
-      if (p.aspectRatio) body.size = p.aspectRatio;
-      if (p.imageUrl) body.filesUrl = [p.imageUrl];
-      if (p.callBackUrl) body.callBackUrl = p.callBackUrl;
-      return body;
-    },
-    parseStatus(data) {
-      // Здесь поле называется status (а не state), и значения в UPPER (SUCCESS/FAIL).
-      const raw = String(data?.status ?? data?.state ?? "").toLowerCase();
-      // Маппинг UPPER → стандартные lowercase значения
-      const state: TaskState =
-        raw === "success" ? "success" :
-        raw === "fail" || raw === "failed" ? "fail" :
-        raw === "generating" || raw === "processing" || raw === "running" ? "generating" :
-        raw === "waiting" || raw === "queuing" || raw === "pending" ? "queuing" :
-        raw;
-      const resultUrls = collectUrls(data?.response) || collectUrls(data);
-      return {
-        taskId: String(data?.taskId ?? ""),
-        state,
-        resultUrls: resultUrls ?? [],
-        failMsg: data?.errorMessage || data?.failMsg || undefined,
-      };
+      return parseStandardStatus(data);
     },
   },
 };
+
+/** Стандартный парсер статуса для jobs и veo (формат идентичен). */
+function parseStandardStatus(data: any): NormalizedStatus {
+  const state = String(data?.state ?? "").toLowerCase();
+  let resultUrls: string[] = [];
+
+  // Главный путь — поле resultJson в виде JSON-строки.
+  const rj = data?.resultJson;
+  if (typeof rj === "string" && rj.length > 0) {
+    try { resultUrls = collectUrls(JSON.parse(rj)); } catch { /* битый JSON */ }
+  }
+  // На всякий случай — поищем по всему ответу.
+  if (resultUrls.length === 0) resultUrls = collectUrls(data);
+
+  return {
+    taskId: String(data?.taskId ?? ""),
+    state,
+    resultUrls,
+    failMsg: data?.failMsg ?? undefined,
+  };
+}
 
 // =========================================================================
 // Публичные функции
@@ -210,7 +184,9 @@ export async function createTask(p: CreateTaskParams): Promise<{ taskId: string 
     json?.taskId ??
     json?.task_id;
   if (!taskId) {
-    throw new KieError(`createTask: no taskId in response: ${JSON.stringify(json).slice(0, 200)}`);
+    throw new KieError(
+      `createTask: no taskId in response: ${JSON.stringify(json).slice(0, 300)}`,
+    );
   }
   return { taskId: String(taskId) };
 }
@@ -223,6 +199,17 @@ export async function getStatus(
   const adapter = adapters[family];
   const json = await getJson(`${adapter.statusPath}?taskId=${encodeURIComponent(taskId)}`, apiKey);
   return adapter.parseStatus(json?.data ?? json);
+}
+
+/** Простейший «пинг» kie.ai — проверяет, что ключ валидный и API отвечает. */
+export async function pingApi(apiKey: string): Promise<{ ok: boolean; status: number; body: string }> {
+  // Запрос на несуществующий taskId — kie.ai вернёт 200 + code=… с понятным сообщением,
+  // а 401/403 поймаем как невалидный ключ.
+  const res = await fetch(`${KIE_BASE}/api/v1/jobs/recordInfo?taskId=ping`, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  const text = await res.text();
+  return { ok: res.status < 400, status: res.status, body: text.slice(0, 500) };
 }
 
 // =========================================================================
@@ -249,16 +236,21 @@ async function getJson(path: string, apiKey: string): Promise<any> {
 }
 
 async function parseKieResponse(res: Response, path: string): Promise<any> {
+  const raw = await res.text();
   let json: any;
   try {
-    json = await res.json();
+    json = JSON.parse(raw);
   } catch {
-    throw new KieError(`HTTP ${res.status} on ${path}: bad JSON`, res.status);
+    throw new KieError(`HTTP ${res.status} on ${path}: bad JSON`, res.status, raw.slice(0, 300));
   }
   // У kie.ai свой код в теле — даже при HTTP 200 может быть code != 200.
   const code = typeof json?.code === "number" ? json.code : res.status;
   if (!res.ok || (code !== 200 && code !== 0)) {
-    throw new KieError(json?.msg || json?.message || `HTTP ${res.status}`, code);
+    throw new KieError(
+      json?.msg || json?.message || `HTTP ${res.status}`,
+      code,
+      raw.slice(0, 300),
+    );
   }
   return json;
 }
@@ -269,6 +261,15 @@ async function parseKieResponse(res: Response, path: string): Promise<any> {
 
 function isKling(modelId: string): boolean {
   return modelId.toLowerCase().startsWith("kling");
+}
+
+function isNanoBanana(modelId: string): boolean {
+  const m = modelId.toLowerCase();
+  return m.includes("nano-banana");
+}
+
+function isGptImage2(modelId: string): boolean {
+  return modelId.toLowerCase().startsWith("gpt-image-2");
 }
 
 /** Достаёт массив URL медиа из произвольной структуры ответа. */

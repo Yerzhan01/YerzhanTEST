@@ -75,28 +75,28 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
         priceUsd: 0.040,
       },
     },
-    formats: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+    // Нано-банана поддерживает auto и большой набор соотношений; берём ходовые.
+    formats: ["auto", "1:1", "3:4", "4:3", "9:16", "16:9"],
     qualities: null,
     durations: null,
   },
 
   // =====================================================================
-  // 🎨 GPT Image — OpenAI gpt-4o image (выделенный эндпоинт)
+  // 🎨 GPT Image 2 — OpenAI (через jobs API: gpt-image-2-text-to-image)
   // =====================================================================
   gpt_image: {
-    title: "🎨 GPT-4o Image (OpenAI)",
-    description: "Качественная генерация в стиле GPT-4o",
+    title: "🎨 GPT Image 2 (OpenAI)",
+    description: "Топовая генерация изображений от OpenAI",
     versions: {
-      "gpt4o-image": {
-        label: "GPT-4o Image",
-        family: "gpt4o-image",
-        kieModel: "gpt4o-image",
+      "gpt-image-2": {
+        label: "GPT Image 2",
+        family: "jobs",
+        kieModel: "gpt-image-2-text-to-image",
         type: "image",
-        priceUsd: 0.030,
+        priceUsd: 0.040,
       },
     },
-    // У gpt4o-image параметр называется `size`, но значения те же три:
-    formats: ["1:1", "3:2", "2:3"],
+    formats: ["auto", "1:1", "16:9", "9:16", "4:3", "3:4"],
     qualities: null,
     durations: null,
   },
@@ -129,23 +129,14 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
   },
 
   // =====================================================================
-  // 🐉 Kling — видео (через jobs API)
+  // 🐉 Kling 3.0 — видео (через jobs API)
   // =====================================================================
   kling: {
-    title: "🐉 Kling Video",
+    title: "🐉 Kling 3.0 Video",
     description: "Видео из текста; std/pro = разрешение",
     versions: {
-      "kling-2.6": {
-        label: "Kling 2.6 (text → video)",
-        family: "jobs",
-        kieModel: "kling-2.6/text-to-video",
-        type: "video",
-        // 2.6 std ~$0.18/5s, pro ~$0.35/5s. Берём среднюю как базу;
-        // итог корректируется множителем качества (см. qualities).
-        pricePer5sUsd: 0.18,
-      },
       "kling-3.0": {
-        label: "Kling 3.0 (text → video)",
+        label: "Kling 3.0",
         family: "jobs",
         kieModel: "kling-3.0/video",
         type: "video",
@@ -154,7 +145,7 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     },
     formats: ["16:9", "9:16", "1:1"],
     qualities: {
-      // У Kling это поле "mode" в API: std (720p) / pro (1080p).
+      // Kling: поле "mode" в API. std = 720p, pro = 1080p.
       std: { label: "Standard (720p)", multiplier: 1.0 },
       pro: { label: "Pro (1080p)", multiplier: 2.0 },
     },

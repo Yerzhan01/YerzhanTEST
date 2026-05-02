@@ -11,7 +11,7 @@ import {
   type Session,
 } from "./session";
 import * as kb from "./keyboards";
-import { KieError, createTask } from "./kie";
+import { KieError, createTask, pingApi } from "./kie";
 import { tryDeliverTask } from "./delivery";
 
 export interface Env {
@@ -109,11 +109,31 @@ function installCommands(bot: Bot, env: Env): void {
     await ctx.reply(
       "/menu — выбор модели и запуск\n" +
         "/status — список активных задач\n" +
+        "/test — проверить коннект с kie.ai\n" +
         "/cancel — сброс текущего выбора\n\n" +
         "После запуска под сообщением будет кнопка 🔄 Проверить — " +
         "ткни если результат не пришёл сам. " +
         "Воркер также сам опрашивает kie.ai раз в минуту.",
     );
+  });
+
+  bot.command("test", async (ctx) => {
+    const note = await ctx.reply("⏳ Проверяю коннект с kie.ai...");
+    try {
+      const result = await pingApi(env.KIE_API_KEY);
+      const text = result.ok
+        ? `✅ kie.ai отвечает (HTTP ${result.status}). Ключ принят.\n\n` +
+          `Сэмпл ответа:\n\`\`\`\n${result.body.slice(0, 300)}\n\`\`\``
+        : `⚠️ HTTP ${result.status} от kie.ai.\nПроверь KIE_API_KEY.\n\n` +
+          `Тело:\n\`\`\`\n${result.body.slice(0, 300)}\n\`\`\``;
+      await ctx.api.editMessageText(ctx.chat!.id, note.message_id, text, { parse_mode: "Markdown" });
+    } catch (e) {
+      await ctx.api.editMessageText(
+        ctx.chat!.id,
+        note.message_id,
+        `❌ Не удалось достучаться до kie.ai:\n${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   });
 
   bot.command("status", async (ctx) => {
@@ -353,8 +373,18 @@ function installPromptHandler(bot: Bot, env: Env): void {
       });
       taskId = created.taskId;
     } catch (e) {
-      const msg = e instanceof KieError ? `kie.ai: ${e.message} (code ${e.code ?? "?"})` : String(e);
-      await ctx.api.editMessageText(ctx.chat.id, status.message_id, `❌ Не удалось создать задачу:\n${msg}`);
+      let msg: string;
+      if (e instanceof KieError) {
+        msg = `kie.ai: ${e.message} (code ${e.code ?? "?"})`;
+        if (e.responseBody) msg += `\n\nОтвет:\n${e.responseBody}`;
+      } else {
+        msg = String(e);
+      }
+      await ctx.api.editMessageText(
+        ctx.chat.id,
+        status.message_id,
+        `❌ Не удалось создать задачу:\n${msg.slice(0, 1500)}`,
+      );
       return;
     }
 
