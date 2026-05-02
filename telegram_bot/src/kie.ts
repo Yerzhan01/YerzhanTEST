@@ -10,6 +10,14 @@
 
 const KIE_BASE = "https://api.kie.ai";
 
+export type TaskState =
+  | "waiting"
+  | "queuing"
+  | "generating"
+  | "success"
+  | "fail"
+  | (string & {});
+
 export interface CreateTaskParams {
   apiKey: string;
   kieModel: string;
@@ -33,10 +41,12 @@ export interface CreateTaskData {
 
 export interface RecordInfoData {
   taskId: string;
-  state: "waiting" | "queuing" | "generating" | "success" | "fail" | string;
+  state: TaskState;
   resultJson?: string;
   failMsg?: string;
   failCode?: number;
+  /** В реальных ответах часто бывают поля разной формы — оставляем сырыми. */
+  [key: string]: unknown;
 }
 
 export class KieError extends Error {
@@ -46,7 +56,13 @@ export class KieError extends Error {
   }
 }
 
+export function isTerminalState(state: TaskState): boolean {
+  return state === "success" || state === "fail";
+}
+
 function buildInput(p: CreateTaskParams): Record<string, unknown> {
+  // Дублируем имена в snake_case и camelCase, потому что kie.ai-эндпоинты
+  // в разных моделях ожидают по-разному.
   const input: Record<string, unknown> = { prompt: p.prompt };
   if (p.aspectRatio) {
     input.aspect_ratio = p.aspectRatio;
@@ -77,7 +93,12 @@ export async function createTask(params: CreateTaskParams): Promise<CreateTaskDa
     body: JSON.stringify(body),
   });
 
-  const json = (await res.json()) as KieResponse<CreateTaskData>;
+  let json: KieResponse<CreateTaskData>;
+  try {
+    json = (await res.json()) as KieResponse<CreateTaskData>;
+  } catch {
+    throw new KieError(`HTTP ${res.status}: bad JSON in response`, res.status);
+  }
   if (!res.ok || json.code !== 200) {
     throw new KieError(json.msg || `HTTP ${res.status}`, json.code ?? res.status);
   }
@@ -91,7 +112,12 @@ export async function getRecordInfo(taskId: string, apiKey: string): Promise<Rec
       headers: { Authorization: `Bearer ${apiKey}` },
     },
   );
-  const json = (await res.json()) as KieResponse<RecordInfoData>;
+  let json: KieResponse<RecordInfoData>;
+  try {
+    json = (await res.json()) as KieResponse<RecordInfoData>;
+  } catch {
+    throw new KieError(`HTTP ${res.status}: bad JSON in response`, res.status);
+  }
   if (!res.ok || json.code !== 200) {
     throw new KieError(json.msg || `HTTP ${res.status}`, json.code ?? res.status);
   }

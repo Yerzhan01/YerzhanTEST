@@ -27,11 +27,17 @@ export interface TaskRecord {
   createdAt: number;
 }
 
+export interface PendingTask {
+  taskId: string;
+  record: TaskRecord;
+}
+
 const SESSION_TTL = 60 * 60;       // 1 час на конфигурирование
 const TASK_TTL = 60 * 60 * 24;     // 24 часа на ожидание результата
+const TASK_PREFIX = "task:";
 
 const sessionKey = (userId: number) => `session:${userId}`;
-const taskKey = (taskId: string) => `task:${taskId}`;
+const taskKey = (taskId: string) => `${TASK_PREFIX}${taskId}`;
 
 export async function getSession(kv: KVNamespace, userId: number): Promise<Session> {
   const raw = await kv.get(sessionKey(userId));
@@ -67,4 +73,28 @@ export async function getTask(kv: KVNamespace, taskId: string): Promise<TaskReco
 
 export async function deleteTask(kv: KVNamespace, taskId: string): Promise<void> {
   await kv.delete(taskKey(taskId));
+}
+
+/** Все ещё ожидающие результата задачи (всех пользователей). Для cron-поллинга. */
+export async function listAllPendingTasks(kv: KVNamespace): Promise<PendingTask[]> {
+  const list = await kv.list({ prefix: TASK_PREFIX });
+  const out: PendingTask[] = [];
+  for (const key of list.keys) {
+    const raw = await kv.get(key.name);
+    if (!raw) continue;
+    try {
+      const record = JSON.parse(raw) as TaskRecord;
+      out.push({ taskId: key.name.slice(TASK_PREFIX.length), record });
+    } catch { /* пропускаем битые */ }
+  }
+  return out;
+}
+
+/** Активные задачи конкретного пользователя — для команды /status. */
+export async function listPendingTasksForUser(
+  kv: KVNamespace,
+  userId: number,
+): Promise<PendingTask[]> {
+  const all = await listAllPendingTasks(kv);
+  return all.filter((t) => t.record.userId === userId);
 }

@@ -4,3 +4,8 @@ TELEGRAM_BOT_TOKEN=
 KIE_API_KEY=
 TELEGRAM_WEBHOOK_SECRET=
 KIE_CALLBACK_SECRET=
+
+# Список Telegram user_id через запятую — кто может пользоваться ботом.
+# Если пусто/не задано — бот доступен всем (опасно: запросы стоят денег).
+# Свой id узнай у бота @userinfobot
+ALLOWED_USER_IDS=

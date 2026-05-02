@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import { MODELS, ModelKey } from "./config";
+import { MODELS, type ModelKey } from "./config";
 
 export function modelsKeyboard(): InlineKeyboard {
   const kb = new InlineKeyboard();
@@ -57,4 +57,11 @@ export function durationsKeyboard(modelKey: ModelKey): InlineKeyboard {
   kb.row();
   kb.text("⬅️ Назад", "back:quality_or_format");
   return kb;
+}
+
+/** Кнопки для управления уже созданной задачей. */
+export function taskKeyboard(taskId: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("🔄 Проверить", `check:${taskId}`)
+    .text("🗑 Снять с ожидания", `drop:${taskId}`);
 }

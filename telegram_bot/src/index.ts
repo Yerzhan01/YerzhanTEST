@@ -1,7 +1,10 @@
 import { webhookCallback } from "grammy";
 import { createBot, type Env } from "./bot";
-import { deleteTask, getTask } from "./session";
-import { extractMediaUrl, getRecordInfo } from "./kie";
+import { listAllPendingTasks } from "./session";
+import { tryDeliverTask } from "./delivery";
+
+/** Минимальный возраст задачи для cron-проверки — даём шанс callback'у. */
+const POLL_MIN_AGE_MS = 30_000;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -27,6 +30,11 @@ export default {
 
     return new Response("not found", { status: 404 });
   },
+
+  /** Cron каждую минуту: подбираем задачи, которые kie.ai не дослал callback'ом. */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(pollPendingTasks(env));
+  },
 };
 
 async function handleKieCallback(
@@ -48,72 +56,41 @@ async function handleKieCallback(
     return new Response("bad json", { status: 400 });
   }
 
-  // Делаем быстрый ответ kie.ai, остальное — фоном.
-  ctx.waitUntil(processCallback(payload, env));
+  const taskId = findTaskId(payload);
+  if (!taskId) {
+    console.error("kie callback without taskId:", payload);
+    return new Response("missing taskId", { status: 400 });
+  }
+
+  // Быстрый ответ kie.ai — фактическая доставка фоном.
+  ctx.waitUntil(
+    tryDeliverTask(taskId, env, payload).catch((e) =>
+      console.error(`callback delivery failed for ${taskId}:`, e),
+    ),
+  );
   return new Response("ok");
 }
 
-async function processCallback(payload: unknown, env: Env): Promise<void> {
-  const taskId = findTaskId(payload);
-  if (!taskId) {
-    console.error("callback without taskId", payload);
-    return;
-  }
-
-  const record = await getTask(env.TASKS, taskId);
-  if (!record) {
-    console.error("unknown task in callback:", taskId);
-    return;
-  }
-
-  // Тянем подробности — kie.ai в callback не всегда шлёт URL результата.
-  let info;
+async function pollPendingTasks(env: Env): Promise<void> {
+  let tasks;
   try {
-    info = await getRecordInfo(taskId, env.KIE_API_KEY);
+    tasks = await listAllPendingTasks(env.TASKS);
   } catch (e) {
-    console.error("recordInfo failed:", e);
-  }
-
-  const sources: unknown[] = [info, payload];
-  if (info?.resultJson) {
-    try { sources.unshift(JSON.parse(info.resultJson)); } catch { /* ignore */ }
-  }
-
-  let mediaUrl: string | null = null;
-  for (const src of sources) {
-    mediaUrl = extractMediaUrl(src);
-    if (mediaUrl) break;
-  }
-
-  const tg = telegramClient(env.TELEGRAM_BOT_TOKEN);
-  const state = info?.state ?? "unknown";
-  const failMsg = info?.failMsg;
-
-  if (!mediaUrl) {
-    await tg.sendMessage(
-      record.chatId,
-      `❌ Задача \`${taskId}\` не вернула результат.\n` +
-        `Статус: ${state}` +
-        (failMsg ? `\nОшибка: ${failMsg}` : ""),
-      { parse_mode: "Markdown" },
-    );
-    await deleteTask(env.TASKS, taskId);
+    console.error("KV list failed:", e);
     return;
   }
 
-  const caption = `✅ Готово\n${record.model} / ${record.version}\n📝 ${truncate(record.prompt, 200)}`;
-  try {
-    if (record.type === "video") {
-      await tg.sendVideo(record.chatId, mediaUrl, caption);
-    } else {
-      await tg.sendPhoto(record.chatId, mediaUrl, caption);
+  for (const { taskId, record } of tasks) {
+    if (Date.now() - record.createdAt < POLL_MIN_AGE_MS) continue;
+    try {
+      const result = await tryDeliverTask(taskId, env);
+      if (result.status === "delivered" || result.status === "failed") {
+        console.log(`cron: ${result.status} ${taskId} (state=${result.state})`);
+      }
+    } catch (e) {
+      console.error(`cron poll failed for ${taskId}:`, e);
     }
-  } catch (e) {
-    console.error("telegram send failed, falling back to plain link:", e);
-    await tg.sendMessage(record.chatId, `✅ Готово: ${mediaUrl}\n\n${caption}`);
   }
-
-  await deleteTask(env.TASKS, taskId);
 }
 
 function findTaskId(payload: unknown): string | null {
@@ -122,7 +99,7 @@ function findTaskId(payload: unknown): string | null {
     if (typeof node !== "object") return null;
     const obj = node as Record<string, unknown>;
     if (typeof obj.taskId === "string") return obj.taskId;
-    if (typeof obj.task_id === "string") return obj.task_id as string;
+    if (typeof obj.task_id === "string") return obj.task_id;
     for (const v of Object.values(obj)) {
       const found = visit(v, depth + 1);
       if (found) return found;
@@ -130,35 +107,4 @@ function findTaskId(payload: unknown): string | null {
     return null;
   };
   return visit(payload);
-}
-
-function truncate(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1) + "…";
-}
-
-function telegramClient(token: string) {
-  const base = `https://api.telegram.org/bot${token}`;
-  const post = async (method: string, body: Record<string, unknown>) => {
-    const res = await fetch(`${base}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`telegram ${method} ${res.status}: ${text}`);
-    }
-    return res.json();
-  };
-  return {
-    sendMessage(chatId: number, text: string, opts: Record<string, unknown> = {}) {
-      return post("sendMessage", { chat_id: chatId, text, ...opts });
-    },
-    sendPhoto(chatId: number, photo: string, caption: string) {
-      return post("sendPhoto", { chat_id: chatId, photo, caption });
-    },
-    sendVideo(chatId: number, video: string, caption: string) {
-      return post("sendVideo", { chat_id: chatId, video, caption });
-    },
-  };
 }

@@ -1,14 +1,18 @@
-import { Bot, type Context } from "grammy";
+import { Bot, type Context, GrammyError, HttpError } from "grammy";
+import { autoRetry } from "@grammyjs/auto-retry";
 import { MODELS, type ModelKey, calcPrice, getVersion } from "./config";
 import {
   clearSession,
+  deleteTask,
   getSession,
+  listPendingTasksForUser,
   saveTask,
   setSession,
   type Session,
 } from "./session";
 import * as kb from "./keyboards";
 import { KieError, createTask } from "./kie";
+import { tryDeliverTask } from "./delivery";
 
 export interface Env {
   TELEGRAM_BOT_TOKEN: string;
@@ -17,18 +21,79 @@ export interface Env {
   WORKER_URL: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
   KIE_CALLBACK_SECRET?: string;
+  /** CSV из Telegram user_id, которым разрешён доступ. Пусто = всем. */
+  ALLOWED_USER_IDS?: string;
 }
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.TELEGRAM_BOT_TOKEN);
 
-  bot.command("start", async (ctx) => {
+  // Авто-ретрай при rate-limit Telegram (429) и временных HTTP-ошибках.
+  bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 5 }));
+
+  installAccessGuard(bot, env);
+  installCommands(bot, env);
+  installFlowHandlers(bot, env);
+  installNavHandlers(bot, env);
+  installTaskHandlers(bot, env);
+  installPromptHandler(bot, env);
+
+  bot.catch((err) => {
+    const e = err.error;
+    if (e instanceof GrammyError) {
+      console.error("grammy api error:", e.description);
+    } else if (e instanceof HttpError) {
+      console.error("network error:", e);
+    } else {
+      console.error("unknown bot error:", e);
+    }
+  });
+
+  return bot;
+}
+
+// =========================================================================
+// Allowlist
+// =========================================================================
+function installAccessGuard(bot: Bot, env: Env): void {
+  if (!env.ALLOWED_USER_IDS) return;
+  const allowed = new Set(
+    env.ALLOWED_USER_IDS.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n)),
+  );
+  if (allowed.size === 0) return;
+  bot.use(async (ctx, next) => {
+    const id = ctx.from?.id;
+    if (!id || !allowed.has(id)) {
+      if (ctx.callbackQuery) {
+        await ctx.answerCallbackQuery({ text: "⛔ Доступ запрещён" });
+      } else if (ctx.chat) {
+        await ctx.reply(`⛔ Доступ запрещён.\nТвой id: ${id ?? "?"}`);
+      }
+      return;
+    }
+    await next();
+  });
+}
+
+// =========================================================================
+// Commands
+// =========================================================================
+function installCommands(bot: Bot, env: Env): void {
+  bot.command(["start", "menu"], async (ctx) => {
     if (!ctx.from) return;
     await setSession(env.TASKS, ctx.from.id, { step: "model" });
     await ctx.reply(
-      "👋 Привет! Это бот-обёртка над kie.ai\n\n" +
-        "Шаги:\n" +
-        "1️⃣ Модель → 2️⃣ Версия → 3️⃣ Формат → 4️⃣ Качество → 5️⃣ Длительность → 6️⃣ Промпт\n\n" +
+      "👋 Привет! Это бот-обёртка над kie.ai.\n\n" +
+        "Шаги: модель → версия → формат → качество → длительность → промпт.\n\n" +
+        "Команды:\n" +
+        "/menu — выбрать модель\n" +
+        "/status — мои активные задачи\n" +
+        "/cancel — сбросить текущий выбор\n" +
+        "/help — справка\n\n" +
         "Выбери модель:",
       { reply_markup: kb.modelsKeyboard() },
     );
@@ -37,18 +102,39 @@ export function createBot(env: Env): Bot {
   bot.command("cancel", async (ctx) => {
     if (!ctx.from) return;
     await clearSession(env.TASKS, ctx.from.id);
-    await ctx.reply("❌ Отменено. Используй /start чтобы начать заново.");
+    await ctx.reply("Сброшено. /menu чтобы начать заново.");
   });
 
   bot.command("help", async (ctx) => {
     await ctx.reply(
-      "/start — выбрать модель и сделать запрос\n" +
-        "/cancel — сбросить текущий выбор\n" +
-        "/help — это сообщение",
+      "/menu — выбор модели и запуск\n" +
+        "/status — список активных задач\n" +
+        "/cancel — сброс текущего выбора\n\n" +
+        "После запуска под сообщением будет кнопка 🔄 Проверить — " +
+        "ткни если результат не пришёл сам. " +
+        "Воркер также сам опрашивает kie.ai раз в минуту.",
     );
   });
 
-  // === Выбор модели ===
+  bot.command("status", async (ctx) => {
+    if (!ctx.from) return;
+    const tasks = await listPendingTasksForUser(env.TASKS, ctx.from.id);
+    if (tasks.length === 0) {
+      await ctx.reply("Активных задач нет.");
+      return;
+    }
+    const lines = tasks.map(({ taskId, record }) => {
+      const ageSec = Math.round((Date.now() - record.createdAt) / 1000);
+      return `🆔 ${taskId}\n   ${record.model} / ${record.version}\n   ⏱ ${ageSec}с назад`;
+    });
+    await ctx.reply(`Активных задач: ${tasks.length}\n\n${lines.join("\n\n")}`);
+  });
+}
+
+// =========================================================================
+// Конфигурирование запроса (клики по моделям/форматам)
+// =========================================================================
+function installFlowHandlers(bot: Bot, env: Env): void {
   bot.callbackQuery(/^m:(.+)$/, async (ctx) => {
     if (!ctx.from || !ctx.match) return;
     const modelKey = ctx.match[1] as ModelKey;
@@ -58,19 +144,17 @@ export function createBot(env: Env): Bot {
     }
     await setSession(env.TASKS, ctx.from.id, { step: "version", model: modelKey });
     const model = MODELS[modelKey];
-    await ctx.editMessageText(
-      `${model.title}\n${model.description}\n\nВыбери версию:`,
-      { reply_markup: kb.versionsKeyboard(modelKey) },
-    );
+    await safeEdit(ctx, `${model.title}\n${model.description}\n\nВыбери версию:`, {
+      reply_markup: kb.versionsKeyboard(modelKey),
+    });
     await ctx.answerCallbackQuery();
   });
 
-  // === Выбор версии → формат ===
   bot.callbackQuery(/^v:(.+)$/, async (ctx) => {
     if (!ctx.from || !ctx.match) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model) {
-      await ctx.answerCallbackQuery({ text: "Сначала /start" });
+      await ctx.answerCallbackQuery({ text: "Сначала /menu" });
       return;
     }
     const versionKey = ctx.match[1];
@@ -81,18 +165,17 @@ export function createBot(env: Env): Bot {
     session.version = versionKey;
     session.step = "format";
     await setSession(env.TASKS, ctx.from.id, session);
-    await ctx.editMessageText("Выбери формат (соотношение сторон):", {
+    await safeEdit(ctx, "Выбери формат (соотношение сторон):", {
       reply_markup: kb.formatsKeyboard(session.model),
     });
     await ctx.answerCallbackQuery();
   });
 
-  // === Выбор формата → качество / длительность / промпт ===
   bot.callbackQuery(/^f:(.+)$/, async (ctx) => {
     if (!ctx.from || !ctx.match) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model || !session.version) {
-      await ctx.answerCallbackQuery({ text: "Сначала /start" });
+      await ctx.answerCallbackQuery({ text: "Сначала /menu" });
       return;
     }
     session.format = ctx.match[1];
@@ -100,12 +183,11 @@ export function createBot(env: Env): Bot {
     await ctx.answerCallbackQuery();
   });
 
-  // === Выбор качества → длительность / промпт ===
   bot.callbackQuery(/^q:(.+)$/, async (ctx) => {
     if (!ctx.from || !ctx.match) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model || !session.version) {
-      await ctx.answerCallbackQuery({ text: "Сначала /start" });
+      await ctx.answerCallbackQuery({ text: "Сначала /menu" });
       return;
     }
     session.quality = ctx.match[1];
@@ -113,12 +195,11 @@ export function createBot(env: Env): Bot {
     await ctx.answerCallbackQuery();
   });
 
-  // === Выбор длительности → промпт ===
   bot.callbackQuery(/^d:(\d+)$/, async (ctx) => {
     if (!ctx.from || !ctx.match) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model || !session.version) {
-      await ctx.answerCallbackQuery({ text: "Сначала /start" });
+      await ctx.answerCallbackQuery({ text: "Сначала /menu" });
       return;
     }
     session.duration = parseInt(ctx.match[1], 10);
@@ -127,12 +208,16 @@ export function createBot(env: Env): Bot {
     await showPromptStage(ctx, session);
     await ctx.answerCallbackQuery();
   });
+}
 
-  // === Кнопки "Назад" ===
+// =========================================================================
+// Кнопки "Назад"
+// =========================================================================
+function installNavHandlers(bot: Bot, env: Env): void {
   bot.callbackQuery("back:model", async (ctx) => {
     if (!ctx.from) return;
     await setSession(env.TASKS, ctx.from.id, { step: "model" });
-    await ctx.editMessageText("Выбери модель:", { reply_markup: kb.modelsKeyboard() });
+    await safeEdit(ctx, "Выбери модель:", { reply_markup: kb.modelsKeyboard() });
     await ctx.answerCallbackQuery();
   });
 
@@ -140,14 +225,13 @@ export function createBot(env: Env): Bot {
     if (!ctx.from) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model) {
-      await ctx.editMessageText("Выбери модель:", { reply_markup: kb.modelsKeyboard() });
+      await safeEdit(ctx, "Выбери модель:", { reply_markup: kb.modelsKeyboard() });
     } else {
       session.step = "version";
       await setSession(env.TASKS, ctx.from.id, session);
-      await ctx.editMessageText(
-        `${MODELS[session.model].title}\nВыбери версию:`,
-        { reply_markup: kb.versionsKeyboard(session.model) },
-      );
+      await safeEdit(ctx, `${MODELS[session.model].title}\nВыбери версию:`, {
+        reply_markup: kb.versionsKeyboard(session.model),
+      });
     }
     await ctx.answerCallbackQuery();
   });
@@ -156,11 +240,11 @@ export function createBot(env: Env): Bot {
     if (!ctx.from) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model) {
-      await ctx.editMessageText("Выбери модель:", { reply_markup: kb.modelsKeyboard() });
+      await safeEdit(ctx, "Выбери модель:", { reply_markup: kb.modelsKeyboard() });
     } else {
       session.step = "format";
       await setSession(env.TASKS, ctx.from.id, session);
-      await ctx.editMessageText("Выбери формат:", {
+      await safeEdit(ctx, "Выбери формат:", {
         reply_markup: kb.formatsKeyboard(session.model),
       });
     }
@@ -171,35 +255,78 @@ export function createBot(env: Env): Bot {
     if (!ctx.from) return;
     const session = await getSession(env.TASKS, ctx.from.id);
     if (!session.model) {
-      await ctx.editMessageText("Выбери модель:", { reply_markup: kb.modelsKeyboard() });
+      await safeEdit(ctx, "Выбери модель:", { reply_markup: kb.modelsKeyboard() });
     } else if (MODELS[session.model].qualities) {
       session.step = "quality";
       await setSession(env.TASKS, ctx.from.id, session);
-      await ctx.editMessageText("Выбери качество:", {
+      await safeEdit(ctx, "Выбери качество:", {
         reply_markup: kb.qualitiesKeyboard(session.model),
       });
     } else {
       session.step = "format";
       await setSession(env.TASKS, ctx.from.id, session);
-      await ctx.editMessageText("Выбери формат:", {
+      await safeEdit(ctx, "Выбери формат:", {
         reply_markup: kb.formatsKeyboard(session.model),
       });
     }
     await ctx.answerCallbackQuery();
   });
+}
 
-  // === Промпт текстом ===
+// =========================================================================
+// Управление созданной задачей: 🔄 Проверить / 🗑 Снять
+// =========================================================================
+function installTaskHandlers(bot: Bot, env: Env): void {
+  bot.callbackQuery(/^check:(.+)$/, async (ctx) => {
+    if (!ctx.match) return;
+    const taskId = ctx.match[1];
+    const result = await tryDeliverTask(taskId, env);
+    switch (result.status) {
+      case "delivered":
+        await ctx.answerCallbackQuery({ text: "✅ Готово, отправил" });
+        await safeRemoveKeyboard(ctx);
+        break;
+      case "failed":
+        await ctx.answerCallbackQuery({ text: `❌ Ошибка: ${result.error ?? "?"}` });
+        await safeRemoveKeyboard(ctx);
+        break;
+      case "missing":
+        await ctx.answerCallbackQuery({ text: "Задача уже доставлена или истекла" });
+        await safeRemoveKeyboard(ctx);
+        break;
+      case "still-running":
+      default:
+        await ctx.answerCallbackQuery({
+          text: `⏳ Ещё генерируется (state: ${result.state ?? "?"})`,
+        });
+    }
+  });
+
+  bot.callbackQuery(/^drop:(.+)$/, async (ctx) => {
+    if (!ctx.match) return;
+    const taskId = ctx.match[1];
+    await deleteTask(env.TASKS, taskId);
+    await ctx.answerCallbackQuery({ text: "Снято с ожидания" });
+    await safeRemoveKeyboard(ctx);
+  });
+}
+
+// =========================================================================
+// Промпт текстом
+// =========================================================================
+function installPromptHandler(bot: Bot, env: Env): void {
   bot.on("message:text", async (ctx) => {
     if (!ctx.from || !ctx.chat) return;
-    if (ctx.message.text.startsWith("/")) return; // команды обрабатываются отдельно
+    if (ctx.message.text.startsWith("/")) return; // команды отрабатываются отдельно
+
     const session = await getSession(env.TASKS, ctx.from.id);
     if (session.step !== "prompt" || !session.model || !session.version) {
-      await ctx.reply("Используй /start чтобы выбрать модель.");
+      await ctx.reply("Используй /menu чтобы выбрать модель.");
       return;
     }
     const version = getVersion(session.model, session.version);
     if (!version) {
-      await ctx.reply("Версия не найдена. /start");
+      await ctx.reply("Версия не найдена. /menu");
       return;
     }
 
@@ -210,10 +337,11 @@ export function createBot(env: Env): Bot {
     }
 
     const callBackUrl = buildCallbackUrl(env);
-    await ctx.reply("⏳ Отправляю задачу в kie.ai...");
+    const status = await ctx.reply("⏳ Создаю задачу в kie.ai...");
 
+    let taskId: string;
     try {
-      const { taskId } = await createTask({
+      const created = await createTask({
         apiKey: env.KIE_API_KEY,
         kieModel: version.kieModel,
         prompt,
@@ -222,88 +350,83 @@ export function createBot(env: Env): Bot {
         duration: session.duration,
         callBackUrl,
       });
-
-      await saveTask(env.TASKS, taskId, {
-        chatId: ctx.chat.id,
-        userId: ctx.from.id,
-        type: version.type,
-        model: session.model,
-        version: session.version,
-        prompt,
-        createdAt: Date.now(),
-      });
-
-      const price = calcPrice(
-        session.model,
-        session.version,
-        session.quality ?? null,
-        session.duration ?? null,
-      );
-
-      const isVideo = version.type === "video";
-      await ctx.reply(
-        `✅ Задача создана\n` +
-          `🆔 \`${taskId}\`\n` +
-          `🤖 ${version.label}\n` +
-          `💵 ~$${price.toFixed(4)}\n\n` +
-          (isVideo
-            ? "Видео генерируется обычно 1-5 минут. Пришлю как только будет готово."
-            : "Картинка обычно готова за 10-30 секунд."),
-        { parse_mode: "Markdown" },
-      );
-
-      await clearSession(env.TASKS, ctx.from.id);
+      taskId = created.taskId;
     } catch (e) {
       const msg = e instanceof KieError ? `kie.ai: ${e.message} (code ${e.code ?? "?"})` : String(e);
-      await ctx.reply(`❌ Не удалось создать задачу:\n${msg}`);
+      await ctx.api.editMessageText(ctx.chat.id, status.message_id, `❌ Не удалось создать задачу:\n${msg}`);
+      return;
     }
-  });
 
-  bot.catch((err) => {
-    console.error("bot error:", err);
-  });
+    await saveTask(env.TASKS, taskId, {
+      chatId: ctx.chat.id,
+      userId: ctx.from.id,
+      type: version.type,
+      model: session.model,
+      version: session.version,
+      prompt,
+      createdAt: Date.now(),
+    });
 
-  return bot;
+    const price = calcPrice(
+      session.model,
+      session.version,
+      session.quality ?? null,
+      session.duration ?? null,
+    );
+
+    const isVideo = version.type === "video";
+    await ctx.api.editMessageText(
+      ctx.chat.id,
+      status.message_id,
+      `✅ Задача создана\n` +
+        `🆔 ${taskId}\n` +
+        `🤖 ${version.label}\n` +
+        `💵 ~$${price.toFixed(4)}\n\n` +
+        (isVideo
+          ? "Видео обычно ~1-5 минут. Пришлю как только будет готово."
+          : "Картинка обычно ~10-30 секунд."),
+      { reply_markup: kb.taskKeyboard(taskId) },
+    );
+
+    await clearSession(env.TASKS, ctx.from.id);
+  });
 }
 
+// =========================================================================
+// Вспомогательное
+// =========================================================================
 async function advanceAfterFormat(ctx: Context, env: Env, session: Session): Promise<void> {
-  if (!session.model) return;
+  if (!session.model || !ctx.from) return;
   const model = MODELS[session.model];
 
   if (model.qualities) {
     session.step = "quality";
-    await setSession(env.TASKS, ctx.from!.id, session);
-    await ctx.editMessageText("Выбери качество:", {
-      reply_markup: kb.qualitiesKeyboard(session.model),
-    });
+    await setSession(env.TASKS, ctx.from.id, session);
+    await safeEdit(ctx, "Выбери качество:", { reply_markup: kb.qualitiesKeyboard(session.model) });
     return;
   }
   if (model.durations) {
     session.step = "duration";
-    await setSession(env.TASKS, ctx.from!.id, session);
-    await ctx.editMessageText("Выбери длительность:", {
-      reply_markup: kb.durationsKeyboard(session.model),
-    });
+    await setSession(env.TASKS, ctx.from.id, session);
+    await safeEdit(ctx, "Выбери длительность:", { reply_markup: kb.durationsKeyboard(session.model) });
     return;
   }
   session.step = "prompt";
-  await setSession(env.TASKS, ctx.from!.id, session);
+  await setSession(env.TASKS, ctx.from.id, session);
   await showPromptStage(ctx, session);
 }
 
 async function advanceAfterQuality(ctx: Context, env: Env, session: Session): Promise<void> {
-  if (!session.model) return;
+  if (!session.model || !ctx.from) return;
   const model = MODELS[session.model];
   if (model.durations) {
     session.step = "duration";
-    await setSession(env.TASKS, ctx.from!.id, session);
-    await ctx.editMessageText("Выбери длительность:", {
-      reply_markup: kb.durationsKeyboard(session.model),
-    });
+    await setSession(env.TASKS, ctx.from.id, session);
+    await safeEdit(ctx, "Выбери длительность:", { reply_markup: kb.durationsKeyboard(session.model) });
     return;
   }
   session.step = "prompt";
-  await setSession(env.TASKS, ctx.from!.id, session);
+  await setSession(env.TASKS, ctx.from.id, session);
   await showPromptStage(ctx, session);
 }
 
@@ -317,8 +440,8 @@ async function showPromptStage(ctx: Context, session: Session): Promise<void> {
     session.quality ?? null,
     session.duration ?? null,
   );
-  const lines = [
-    `Готово к запуску:`,
+  const lines: string[] = [
+    "Готово к запуску:",
     `🤖 ${version.label}`,
     `📐 Формат: ${session.format}`,
   ];
@@ -327,7 +450,7 @@ async function showPromptStage(ctx: Context, session: Session): Promise<void> {
   lines.push(`💵 Стоимость: ~$${price.toFixed(4)}`);
   lines.push("");
   lines.push("Теперь пришли промпт текстом 👇");
-  await ctx.editMessageText(lines.join("\n"));
+  await safeEdit(ctx, lines.join("\n"));
 }
 
 function buildCallbackUrl(env: Env): string {
@@ -337,4 +460,27 @@ function buildCallbackUrl(env: Env): string {
     url.searchParams.set("token", env.KIE_CALLBACK_SECRET);
   }
   return url.toString();
+}
+
+/** editMessageText, проглатывающий "message is not modified". */
+async function safeEdit(
+  ctx: Context,
+  text: string,
+  opts: Parameters<Context["editMessageText"]>[1] = {},
+): Promise<void> {
+  try {
+    await ctx.editMessageText(text, opts);
+  } catch (e) {
+    if (e instanceof GrammyError && e.description?.includes("message is not modified")) return;
+    throw e;
+  }
+}
+
+async function safeRemoveKeyboard(ctx: Context): Promise<void> {
+  try {
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+  } catch (e) {
+    if (e instanceof GrammyError && e.description?.includes("message is not modified")) return;
+    // не критично
+  }
 }

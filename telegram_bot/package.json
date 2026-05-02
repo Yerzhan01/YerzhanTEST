@@ -10,6 +10,7 @@
     "tail": "wrangler tail"
   },
   "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
     "grammy": "^1.30.0"
   },
   "devDependencies": {
