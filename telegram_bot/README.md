@@ -235,18 +235,22 @@ wrangler tail
 
 ---
 
-## 💵 Цены (ориентировочные)
+## 💵 Цены (с kie.ai на ноябрь-декабрь 2024)
 
-> Реальные тарифы смотри на [kie.ai/pricing](https://kie.ai/pricing) — здесь
-> заглушки в `config.ts`, обновляй при изменениях.
+| Модель | Цена | Источник |
+|---|---|---|
+| **Nano Banana** (Gemini 2.5 Flash) | от **$0.02** / картинка | [kie.ai/nano-banana](https://kie.ai/nano-banana) |
+| **Nano Banana Pro** (Gemini 3 Pro) | **$0.09** (1K/2K), **$0.12** (4K) | [kie.ai/nano-banana-pro](https://kie.ai/nano-banana-pro) |
+| **Nano Banana 2** (Gemini 3.1 Flash) | от **$0.04** / картинка | [kie.ai/nano-banana-2](https://kie.ai/nano-banana-2) |
+| **GPT Image 2** | ~$0.04 / картинка (оценка) | точная цена не светится публично |
+| **Veo 3 Fast** | **$0.40** / 8с видео (80 кредитов) | [kie.ai/v3-api-pricing](https://kie.ai/v3-api-pricing) |
+| **Veo 3 Quality** | **$2.00** / 8с видео (400 кредитов) | [kie.ai/v3-api-pricing](https://kie.ai/v3-api-pricing) |
+| **Kling 3.0 std** | ~$0.30 / 5с (оценка) | точная цена не светится |
+| **Kling 3.0 pro** | ~$0.60 / 5с (оценка) | × 2 от std в коде |
 
-- **Nano Banana** — ~$0.020 / картинка
-- **Nano Banana Pro** — ~$0.080 / картинка
-- **Nano Banana 2 (4K)** — ~$0.040 / картинка
-- **GPT Image 2** — ~$0.040 / картинка
-- **Veo 3 Fast** — ~$0.40 / видео 8с
-- **Veo 3 Quality** — ~$2.00 / видео 8с
-- **Kling 3.0** — ~$0.30 (std) / $0.60 (pro) за 5с
+> Кредитная схема kie.ai: **$0.005 за 1 кредит** (минимальный пакет $5 = 1000 кредитов).
+> Точное списание видно в дашборде после генерации. Тарифы могут меняться,
+> сверяйся на [kie.ai/pricing](https://kie.ai/pricing).
 
 ---
 

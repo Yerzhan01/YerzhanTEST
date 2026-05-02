@@ -54,21 +54,25 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     description: "Текст → картинка, разные поколения Gemini Image",
     versions: {
       "nano-banana": {
-        label: "Nano Banana (Gemini 2.5 Flash)",
+        // kie.ai/nano-banana — "starts at ~$0.02 per image"
+        label: "Nano Banana (Gemini 2.5 Flash) — от $0.02",
         family: "jobs",
         kieModel: "google/nano-banana",
         type: "image",
         priceUsd: 0.020,
       },
       "nano-banana-pro": {
-        label: "Nano Banana Pro (Gemini 3 Pro)",
+        // kie.ai/nano-banana-pro — $0.09 (1K/2K), $0.12 (4K).
+        // Без выбора разрешения берём $0.09; на 4K кредиты спишут больше.
+        label: "Nano Banana Pro (Gemini 3 Pro) — $0.09",
         family: "jobs",
         kieModel: "nano-banana-pro",
         type: "image",
-        priceUsd: 0.080,
+        priceUsd: 0.090,
       },
       "nano-banana-2": {
-        label: "Nano Banana 2 (Gemini 3.1 Flash, 4K)",
+        // kie.ai/nano-banana-2 — page title: "from $0.04"
+        label: "Nano Banana 2 (Gemini 3.1 Flash, 4K) — от $0.04",
         family: "jobs",
         kieModel: "nano-banana-2",
         type: "image",
@@ -89,7 +93,10 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     description: "Топовая генерация изображений от OpenAI",
     versions: {
       "gpt-image-2": {
-        label: "GPT Image 2",
+        // На kie.ai точная цена не светится в публичных текстах; ставим
+        // оценочно $0.04 (тариф уровня nano-banana-2). Реальное списание
+        // см. в дашборде kie.ai после первой генерации.
+        label: "GPT Image 2 — ~$0.04 (≈)",
         family: "jobs",
         kieModel: "gpt-image-2-text-to-image",
         type: "image",
@@ -109,14 +116,16 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     description: "Видео из текста, ~8 сек со звуком",
     versions: {
       "veo3-fast": {
-        label: "Veo 3 Fast",
+        // kie.ai/v3-api-pricing: $0.40 / 8s video (80 credits)
+        label: "Veo 3 Fast — $0.40 / 8с",
         family: "veo",
         kieModel: "veo3_fast",
         type: "video",
         priceUsd: 0.40,
       },
       "veo3-quality": {
-        label: "Veo 3 Quality",
+        // kie.ai/v3-api-pricing: $2.00 / 8s video (400 credits)
+        label: "Veo 3 Quality — $2.00 / 8с",
         family: "veo",
         kieModel: "veo3",
         type: "video",
@@ -136,7 +145,10 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
     description: "Видео из текста; std/pro = разрешение",
     versions: {
       "kling-3.0": {
-        label: "Kling 3.0",
+        // На kie.ai страница kling-3-0 цену конкретно не публикует.
+        // Для ориентира: Kling 2.1 Pro у kie.ai = $0.25/5с, Standard = $0.125/5с.
+        // 3.0 ставим выше: ~$0.30/5с std (множитель ×2 для pro = $0.60/5с).
+        label: "Kling 3.0 — ~$0.30/5с std, ~$0.60/5с pro (≈)",
         family: "jobs",
         kieModel: "kling-3.0/video",
         type: "video",
