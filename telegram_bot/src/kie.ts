@@ -47,8 +47,10 @@ export interface CreateTaskParams {
   quality?: string;
   /** Для kling: число секунд (3-15); адаптер сериализует в строку. */
   duration?: number;
-  /** Опциональная картинка-вход (image-to-video / edit-режимы). */
+  /** Опциональная картинка-вход (image-to-video / edit-режимы / motion-control). */
   imageUrl?: string;
+  /** Опциональное видео-вход (для Kling motion-control). */
+  videoUrl?: string;
   callBackUrl?: string;
 }
 
@@ -91,6 +93,21 @@ const adapters: Record<ModelFamily, Adapter> = {
     createPath: "/api/v1/jobs/createTask",
     statusPath: "/api/v1/jobs/recordInfo",
     buildBody(p) {
+      // === Особый случай: Kling Motion Control — у него своя схема input ===
+      if (isKlingMotionControl(p.kieModel)) {
+        const input: Record<string, unknown> = {
+          prompt: p.prompt,
+          input_urls: p.imageUrl ? [p.imageUrl] : [],
+          video_urls: p.videoUrl ? [p.videoUrl] : [],
+          mode: p.quality || "720p",          // "720p" | "1080p"
+          character_orientation: "image",
+          background_source: "input_video",
+        };
+        const body: Record<string, unknown> = { model: p.kieModel, input };
+        if (p.callBackUrl) body.callBackUrl = p.callBackUrl;
+        return body;
+      }
+
       const input: Record<string, unknown> = { prompt: p.prompt };
 
       if (p.aspectRatio) input.aspect_ratio = p.aspectRatio;
@@ -100,7 +117,7 @@ const adapters: Record<ModelFamily, Adapter> = {
         input.image_input = p.imageUrl ? [p.imageUrl] : [];
       }
 
-      // === Kling: duration — строка, image_urls для img-to-video ===
+      // === Kling text/img-to-video: duration — строка, image_urls для img-to-video ===
       if (isKling(p.kieModel)) {
         if (p.duration != null) input.duration = String(p.duration);
         if (p.imageUrl) input.image_urls = [p.imageUrl];
@@ -264,6 +281,10 @@ async function parseKieResponse(res: Response, path: string): Promise<any> {
 
 function isKling(modelId: string): boolean {
   return modelId.toLowerCase().startsWith("kling");
+}
+
+function isKlingMotionControl(modelId: string): boolean {
+  return modelId.toLowerCase().includes("motion-control");
 }
 
 function isNanoBanana(modelId: string): boolean {

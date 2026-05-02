@@ -156,6 +156,21 @@ curl "https://api.telegram.org/bot${TG_TOKEN}/getWebhookInfo"
 - **🔄 Проверить** — пингануть kie.ai вручную, если хочется получить результат скорее.
 - **🗑 Снять с ожидания** — удалить задачу из локального учёта (на kie.ai не отменяет).
 
+### 🕺 Kling Motion Control (особый ввод)
+
+Для Kling 3.0 Motion Control шаги формат/качество/длительность пропускаются —
+нужен видео-референс движения и картинка персонажа. После выбора этой версии
+бот попросит прислать **одним сообщением** 3 строки:
+
+```
+https://example.com/character.png
+https://example.com/motion-reference.mp4
+Текст промпта (что должен делать персонаж)
+```
+
+Парсер берёт первые две `http(s)`-ссылки как картинку и видео соответственно,
+остальное идёт в промпт. URL должны быть публично доступны для kie.ai.
+
 ---
 
 ## 🔐 Allowlist пользователей
@@ -231,7 +246,8 @@ wrangler tail
 | 🍌 Nano Banana | Nano Banana 2 (Gemini 3.1 Flash, 4K) | `nano-banana-2` | формат |
 | 🎨 GPT Image 2 | GPT Image 2 | `gpt-image-2-text-to-image` | формат |
 | 🎬 Veo 3 | Fast / Quality | `veo3_fast` / `veo3` | формат (16:9 / 9:16) |
-| 🐉 Kling 3.0 | Kling 3.0 | `kling-3.0/video` | формат, mode (std/pro), длительность 5/10с |
+| 🐉 Kling 3.0 | Text→Video | `kling-3.0/video` | формат, mode (std/pro), длительность 5/10с |
+| 🐉 Kling 3.0 | Motion Control | `kling-3.0/motion-control` | URL картинки + URL видео-референса + промпт |
 
 ---
 
@@ -245,8 +261,9 @@ wrangler tail
 | **GPT Image 2** | ~$0.04 / картинка (оценка) | точная цена не светится публично |
 | **Veo 3 Fast** | **$0.40** / 8с видео (80 кредитов) | [kie.ai/v3-api-pricing](https://kie.ai/v3-api-pricing) |
 | **Veo 3 Quality** | **$2.00** / 8с видео (400 кредитов) | [kie.ai/v3-api-pricing](https://kie.ai/v3-api-pricing) |
-| **Kling 3.0 std** | ~$0.30 / 5с (оценка) | точная цена не светится |
-| **Kling 3.0 pro** | ~$0.60 / 5с (оценка) | × 2 от std в коде |
+| **Kling 3.0 Text→Video std** | ~$0.30 / 5с (оценка) | точная цена не светится |
+| **Kling 3.0 Text→Video pro** | ~$0.60 / 5с (оценка) | × 2 от std в коде |
+| **Kling 3.0 Motion Control** | ~$0.40 / 5с (оценка) | точная цена не светится |
 
 > Кредитная схема kie.ai: **$0.005 за 1 кредит** (минимальный пакет $5 = 1000 кредитов).
 > Точное списание видно в дашборде после генерации. Тарифы могут меняться,

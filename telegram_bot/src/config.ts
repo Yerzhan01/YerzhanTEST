@@ -28,6 +28,15 @@ export interface VersionConfig {
   priceUsd?: number;
   /** Цена за 5 секунд видео (для моделей, биллящих по длительности). */
   pricePer5sUsd?: number;
+  /**
+   * Особый flow ввода. По умолчанию — стандартный (формат → качество →
+   * длительность → промпт текстом). Иначе FSM пропускает шаги и сразу
+   * запрашивает специфичные поля.
+   *
+   * "motion-control" — пользователь шлёт сообщение из 3 элементов:
+   *   URL картинки персонажа, URL видео-референса, текст промпта.
+   */
+  inputType?: "motion-control";
 }
 
 export interface QualityConfig {
@@ -148,16 +157,29 @@ export const MODELS: Record<ModelKey, ModelConfig> = {
         // На kie.ai страница kling-3-0 цену конкретно не публикует.
         // Для ориентира: Kling 2.1 Pro у kie.ai = $0.25/5с, Standard = $0.125/5с.
         // 3.0 ставим выше: ~$0.30/5с std (множитель ×2 для pro = $0.60/5с).
-        label: "Kling 3.0 — ~$0.30/5с std, ~$0.60/5с pro (≈)",
+        label: "Kling 3.0 Text→Video — ~$0.30/5с std (≈)",
         family: "jobs",
         kieModel: "kling-3.0/video",
         type: "video",
         pricePer5sUsd: 0.30,
       },
+      "kling-3.0-motion": {
+        // Motion Control: переносит движение с reference-видео на картинку
+        // персонажа. На kie.ai цена не светится — оценочно дороже text-to-video.
+        label: "Kling 3.0 Motion Control — ~$0.40/5с (≈)",
+        family: "jobs",
+        kieModel: "kling-3.0/motion-control",
+        type: "video",
+        pricePer5sUsd: 0.40,
+        inputType: "motion-control",
+      },
     },
     formats: ["16:9", "9:16", "1:1"],
     qualities: {
       // Kling: поле "mode" в API. std = 720p, pro = 1080p.
+      // Motion Control использует другие значения (720p/1080p), но
+      // для бота этот параметр запрашивается только у text-to-video версии —
+      // у motion-control mode прибит к 720p в адаптере.
       std: { label: "Standard (720p)", multiplier: 1.0 },
       pro: { label: "Pro (1080p)", multiplier: 2.0 },
     },

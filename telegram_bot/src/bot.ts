@@ -178,11 +178,35 @@ function installFlowHandlers(bot: Bot, env: Env): void {
       return;
     }
     const versionKey = ctx.match[1];
-    if (!getVersion(session.model, versionKey)) {
+    const version = getVersion(session.model, versionKey);
+    if (!version) {
       await ctx.answerCallbackQuery({ text: "Неизвестная версия" });
       return;
     }
     session.version = versionKey;
+
+    // Особый flow для motion-control: пропускаем формат/качество/длительность
+    // и сразу просим 3-строчный ввод.
+    if (version.inputType === "motion-control") {
+      session.step = "prompt";
+      await setSession(env.TASKS, ctx.from.id, session);
+      await safeEdit(
+        ctx,
+        `${version.label}\n\n` +
+          `Пришли одним сообщением 3 элемента, по строке каждый:\n\n` +
+          `1️⃣ URL картинки персонажа (jpg/png)\n` +
+          `2️⃣ URL видео-референса движения (mp4)\n` +
+          `3️⃣ Текст промпта\n\n` +
+          `Пример:\n` +
+          `\`https://.../character.png\`\n` +
+          `\`https://.../motion.mp4\`\n` +
+          `Персонаж танцует под дождём`,
+        { parse_mode: "Markdown" },
+      );
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
     session.step = "format";
     await setSession(env.TASKS, ctx.from.id, session);
     await safeEdit(ctx, "Выбери формат (соотношение сторон):", {
@@ -350,10 +374,26 @@ function installPromptHandler(bot: Bot, env: Env): void {
       return;
     }
 
-    const prompt = ctx.message.text.trim();
-    if (!prompt) {
+    const text = ctx.message.text.trim();
+    if (!text) {
       await ctx.reply("Промпт пустой. Пришли текст.");
       return;
+    }
+
+    // Для motion-control парсим 3 элемента: img URL, video URL, prompt
+    let prompt = text;
+    let imageUrl: string | undefined;
+    let videoUrl: string | undefined;
+    if (version.inputType === "motion-control") {
+      const parsed = parseMotionControlInput(text);
+      if (!parsed) {
+        await ctx.reply(
+          "Нужно 3 строки: URL картинки, URL видео, текст промпта.\n" +
+            "Пример:\nhttps://.../char.png\nhttps://.../motion.mp4\nПерсонаж танцует",
+        );
+        return;
+      }
+      ({ imageUrl, videoUrl, prompt } = parsed);
     }
 
     const callBackUrl = buildCallbackUrl(env);
@@ -369,6 +409,8 @@ function installPromptHandler(bot: Bot, env: Env): void {
         aspectRatio: session.format,
         quality: session.quality,
         duration: session.duration,
+        imageUrl,
+        videoUrl,
         callBackUrl,
       });
       taskId = created.taskId;
@@ -483,6 +525,30 @@ async function showPromptStage(ctx: Context, session: Session): Promise<void> {
   lines.push("");
   lines.push("Теперь пришли промпт текстом 👇");
   await safeEdit(ctx, lines.join("\n"));
+}
+
+/**
+ * Парсер ввода для Kling Motion Control.
+ * Ищет первые две http(s)-ссылки (картинка и видео в этом порядке);
+ * остаток текста считается промптом.
+ */
+function parseMotionControlInput(text: string): { imageUrl: string; videoUrl: string; prompt: string } | null {
+  const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const urls: string[] = [];
+  const promptLines: string[] = [];
+  for (const line of lines) {
+    if (urls.length < 2 && /^https?:\/\/\S+$/i.test(line)) {
+      urls.push(line);
+    } else {
+      promptLines.push(line);
+    }
+  }
+  if (urls.length < 2 || promptLines.length === 0) return null;
+  return {
+    imageUrl: urls[0],
+    videoUrl: urls[1],
+    prompt: promptLines.join("\n"),
+  };
 }
 
 function buildCallbackUrl(env: Env): string {
