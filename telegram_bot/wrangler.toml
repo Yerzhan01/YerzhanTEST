@@ -2,11 +2,6 @@ name = "telegram-kie-bot"
 main = "src/index.ts"
 compatibility_date = "2024-12-30"
 
-# Auto-poll: каждую минуту проверяем зависшие задачи (на случай, если
-# kie.ai не дослал callback). Cron-триггеры доступны на бесплатном плане.
-[triggers]
-crons = ["* * * * *"]
-
 # Включаем сбор логов (бесплатно). Дальше смотри `npm run tail`.
 [observability]
 enabled = true

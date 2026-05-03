@@ -1,10 +1,6 @@
 import { webhookCallback } from "grammy";
 import { createBot, type Env } from "./bot";
-import { listAllPendingTasks } from "./session";
 import { tryDeliverTask } from "./delivery";
-
-/** Минимальный возраст задачи для cron-проверки — даём шанс callback'у. */
-const POLL_MIN_AGE_MS = 30_000;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -29,11 +25,6 @@ export default {
     }
 
     return new Response("not found", { status: 404 });
-  },
-
-  /** Cron каждую минуту: подбираем задачи, которые kie.ai не дослал callback'ом. */
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(pollPendingTasks(env));
   },
 };
 
@@ -69,28 +60,6 @@ async function handleKieCallback(
     ),
   );
   return new Response("ok");
-}
-
-async function pollPendingTasks(env: Env): Promise<void> {
-  let tasks;
-  try {
-    tasks = await listAllPendingTasks(env.TASKS);
-  } catch (e) {
-    console.error("KV list failed:", e);
-    return;
-  }
-
-  for (const { taskId, record } of tasks) {
-    if (Date.now() - record.createdAt < POLL_MIN_AGE_MS) continue;
-    try {
-      const result = await tryDeliverTask(taskId, env);
-      if (result.status === "delivered" || result.status === "failed") {
-        console.log(`cron: ${result.status} ${taskId} (state=${result.state})`);
-      }
-    } catch (e) {
-      console.error(`cron poll failed for ${taskId}:`, e);
-    }
-  }
 }
 
 function findTaskId(payload: unknown): string | null {
