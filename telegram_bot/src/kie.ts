@@ -171,7 +171,10 @@ const adapters: Record<ModelFamily, Adapter> = {
 
 /** Стандартный парсер статуса для jobs и veo (формат идентичен). */
 function parseStandardStatus(data: any): NormalizedStatus {
-  const state = String(data?.state ?? "").toLowerCase();
+  const rawState = String(
+    data?.state ?? data?.status ?? data?.taskStatus ?? "",
+  ).toLowerCase();
+
   let resultUrls: string[] = [];
 
   // Главный путь — поле resultJson в виде JSON-строки.
@@ -182,11 +185,26 @@ function parseStandardStatus(data: any): NormalizedStatus {
   // На всякий случай — поищем по всему ответу.
   if (resultUrls.length === 0) resultUrls = collectUrls(data);
 
+  const failMsg = data?.failMsg ?? data?.errorMessage ?? data?.fail_msg ?? undefined;
+  const failCode = data?.failCode ?? data?.errorCode ?? data?.fail_code;
+
+  // Veo recordInfo иногда не отдаёт поле state — компенсируем по содержимому.
+  // Также normalize'им Upper-case ("SUCCESS"/"FAIL"), которые встречаются у gpt4o-image.
+  let state = rawState;
+  if (!state) {
+    if (resultUrls.length > 0) state = "success";
+    else if (failMsg || failCode) state = "fail";
+  } else if (state === "failed") {
+    state = "fail";
+  } else if (state === "completed" || state === "completed_successfully") {
+    state = "success";
+  }
+
   return {
     taskId: String(data?.taskId ?? ""),
     state,
     resultUrls,
-    failMsg: data?.failMsg ?? undefined,
+    failMsg,
   };
 }
 
