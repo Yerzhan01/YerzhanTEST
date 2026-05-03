@@ -218,7 +218,20 @@ export async function getStatus(
 ): Promise<NormalizedStatus> {
   const adapter = adapters[family];
   const json = await getJson(`${adapter.statusPath}?taskId=${encodeURIComponent(taskId)}`, apiKey);
-  return adapter.parseStatus(json?.data ?? json);
+  const data = json?.data ?? json;
+  const status = adapter.parseStatus(data);
+  // Диагностика: если задача терминальная но URL не нашёлся — выводим сырой ответ.
+  if (isTerminalState(status.state) && status.resultUrls.length === 0) {
+    console.log(
+      `[kie.getStatus] family=${family} taskId=${taskId} state=${status.state} ` +
+        `NO URLS EXTRACTED. raw data=${JSON.stringify(data).slice(0, 2000)}`,
+    );
+  } else {
+    console.log(
+      `[kie.getStatus] family=${family} taskId=${taskId} state=${status.state} urls=${status.resultUrls.length}`,
+    );
+  }
+  return status;
 }
 
 /** Простейший «пинг» kie.ai — проверяет, что ключ валидный и API отвечает. */
@@ -296,13 +309,33 @@ function isGptImage2(modelId: string): boolean {
   return modelId.toLowerCase().startsWith("gpt-image-2");
 }
 
+/**
+ * Распознаёт URL как медиа. Поддерживает:
+ *  1) URL с расширением в пути: foo.mp4, bar.png?sig=...
+ *  2) Signed URLs без расширения, но с типом в query или fragment:
+ *     foo?response-content-type=video/mp4
+ *  3) URL содержащие ключевые слова kie.ai: /video/, /image/, generated, render
+ */
+function looksLikeMediaUrl(s: string): boolean {
+  if (!/^https?:\/\//i.test(s)) return false;
+  const exts = /\.(png|jpe?g|webp|mp4|webm|gif|mov|avi|mkv|m4v)(\?|#|$)/i;
+  if (exts.test(s)) return true;
+  // signed S3/R2-стайл с типом в content-type
+  if (/[?&]response-content-type=(image|video|audio)/i.test(s)) return true;
+  // Эвристика: похоже на URL медиа от kie.ai/CDN
+  if (/\/(video|image|images|videos|generated|render|output|file|files)\//i.test(s)) {
+    // Но не любая ссылка из сети — отсекаем явные не-медиа
+    if (/\.(html?|json|txt|xml|css|js)(\?|$)/i.test(s)) return false;
+    return true;
+  }
+  return false;
+}
+
 /** Достаёт массив URL медиа из произвольной структуры ответа. */
 function collectUrls(node: unknown, depth = 0): string[] {
   if (!node || depth > 6) return [];
   if (typeof node === "string") {
-    if (/^https?:\/\/.+\.(png|jpe?g|webp|mp4|webm|gif|mov|avi)(\?.*)?$/i.test(node)) {
-      return [node];
-    }
+    if (looksLikeMediaUrl(node)) return [node];
     return [];
   }
   if (Array.isArray(node)) {
